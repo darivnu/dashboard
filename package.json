@@ -1,0 +1,9 @@
+{
+  "name": "dashboard",
+  "private": true,
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "dev": "bun run --filter '*' dev",
+    "build": "bun run --filter '*' build"
+  }
+}
