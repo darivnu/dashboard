@@ -1,7 +1,16 @@
 import { Elysia, t } from 'elysia'
 import { isDev } from '../../config/env'
-import { requireAuth, SESSION_COOKIE } from '../../plugins/session'
+import { auth, SESSION_COOKIE } from '../../plugins/session'
 import { authService } from './auth.service'
+
+const publicUser = t.Object({
+    id: t.String({ format: 'uuid' }),
+    email: t.String({ format: 'email' }),
+    role: t.Union([t.Literal('user'), t.Literal('admin')]),
+    createdAt: t.Date(),
+})
+
+const ok = t.Object({ ok: t.Literal(true) })
 
 const credentialsBody = t.Object({
     email: t.String({ format: 'email', maxLength: 254}),
@@ -20,16 +29,29 @@ const cookieOptions = {
 } as const
 
 export const authRoutes = new Elysia ({ prefix: '/auth'})
+    .use(auth)
+    .model({
+        'auth.credentials': credentialsBody,
+        'auth.verifyEmailBody': verifyEmailBody,
+        'auth.user': publicUser,
+        'auth.ok': ok,
+    })
     .post('/register', async ({ body, set }) => {
         const user = await authService.register(body)
         set.status = 201
         return user
-    }, { body: credentialsBody })
-    
+    }, {
+        body: 'auth.credentials',
+        response: { 201: 'auth.user' },
+    })
+
     .post('/verify-email', async ({ body }) => {
         await authService.verifyEmail(body.token)
         return { ok: true }
-    }, { body: verifyEmailBody })
+    }, {
+        body: 'auth.verifyEmailBody',
+        response: 'auth.ok',
+    })
 
     .post('/login', async ({ body, cookie, request, server }) => {
         const { token, expiresAt, user } = await authService.login({
@@ -46,7 +68,10 @@ export const authRoutes = new Elysia ({ prefix: '/auth'})
         })
 
         return user
-    }, { body: credentialsBody })
+    }, {
+        body: 'auth.credentials',
+        response: 'auth.user',
+    })
 
     .post('/logout', async ({ cookie }) => {
         await authService.logout(cookie[SESSION_COOKIE].value)
@@ -59,8 +84,11 @@ export const authRoutes = new Elysia ({ prefix: '/auth'})
         })
 
         return { ok: true }
+    }, {
+        response: 'auth.ok',
     })
 
-    .use(requireAuth)
-
-    .get('/me', ({ user }) => authService.me(user)) 
+    .get('/me', ({ user }) => authService.me(user), {
+        auth: true,
+        response: 'auth.user',
+    })

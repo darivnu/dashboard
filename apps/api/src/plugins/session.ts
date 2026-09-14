@@ -40,16 +40,15 @@ async function loadUser(token: unknown): Promise<SessionUser | null> {
         return user
 }
 
- export const session = new Elysia({ name: 'session' })
-    .resolve({ as: 'scoped' }, async ({ cookie }) => ({
-      user: await loadUser(cookie[SESSION_COOKIE].value),
-}))
-
-export const requireAuth = new Elysia({ name: 'require-auth' })
-    .resolve({ as: 'scoped' }, async ({ cookie }) => {
-      const user = await loadUser(cookie[SESSION_COOKIE].value)
-      if (!user) {
-        throw new AppError(401, 'UNAUTHORIZED', 'Authentication required')
-      }
-      return { user }
-})
+export const auth = new Elysia({ name: 'auth' })
+    .macro({
+        auth: {
+            async resolve({ cookie }) {
+                const user = await loadUser(cookie[SESSION_COOKIE].value)
+                if (!user) {
+                    throw new AppError(401, 'UNAUTHORIZED', 'Authentication required')
+                }
+                return { user }
+            },
+        },
+    })

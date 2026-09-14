@@ -1,8 +1,11 @@
-  {
+{
     "name": "api",
     "private": true,
     "scripts": {
+        "generate:services": "bun scripts/generate-service-manifest.ts",
+        "predev": "bun run generate:services",
         "dev": "bun run migrate && bun --watch src/server.ts",
+        "prebuild": "bun run generate:services",
         "build": "bun build src/server.ts src/db/migrate.ts --target bun --outdir dist",
         "migrate": "bun src/db/migrate.ts",
         "db:generate": "drizzle-kit generate",
@@ -12,6 +15,7 @@
     "dependencies": {
         "@elysiajs/openapi": "^1.4.16",
         "@elysiajs/static": "^1.3.0",
+        "@sinclair/typebox": "0.34.52",
         "drizzle-orm": "^0.45.2",
         "elysia": "^1.3.0",
         "postgres": "^3.4.9"
