@@ -1,15 +1,24 @@
-import { useEffect, useState } from 'react'
-import { api } from './api'
+import { BrowserRouter, Routes, Route, Link } from 'react-router'
+import Login from './pages/Login'
+import Register from './pages/Register'
+import Dashboard from './pages/Dashboard'
 
 function App() {
-    const [msg, setMsg] = useState('cargando...')
+    return (
+    <BrowserRouter>
+        <nav className="p-4 flex gap-4 bg-gray-800 text-white">
+        <Link to="/login">Login</Link>
+        <Link to="/register">Register</Link>
+        <Link to="/dashboard">Dashboard</Link>
+        </nav>
 
-    useEffect(() => {
-    api.health.get().then(({ data, error }) => {
-        setMsg(error ? '❌ error' : JSON.stringify(data))
-    })
-    }, [])
-
-    return <h1 className="text-3xl text-red-600 p-8">Back dice: {msg}</h1>
+        <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+    </BrowserRouter>
+    )
 }
+
 export default App
