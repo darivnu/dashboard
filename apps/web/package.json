@@ -6,6 +6,7 @@
     "build": "tsc && bun --bun vite build"
   },
   "dependencies": {
+    "@elysiajs/eden": "^1.4.9",
     "@tailwindcss/vite": "^4.3.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
@@ -15,6 +16,7 @@
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^4.5.0",
+    "elysia": "^1.4.30",
     "typescript": "^5",
     "vite": "^6.3.0"
   }

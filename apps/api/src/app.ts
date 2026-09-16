@@ -7,6 +7,7 @@ import { authRoutes } from './modules/auth/auth.routes'
 import { aboutRoutes } from './modules/about/about.routes'
 import { openapi } from '@elysiajs/openapi'
 import { isDev } from './config/env'
+export type App = typeof app
 
 const api = new Elysia({ prefix: '/api' })
     .get('/health', () => ({ ok: true }))
