@@ -3,6 +3,14 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite"; 
 
 export default defineConfig({
-    plugins: [react(), tailwindcss()], 
-    server: { proxy: { "/health": "http://localhost:8080" } },
+  plugins: [react(), tailwindcss()],
+  server: { 
+    proxy: { 
+      "/api": "http://localhost:8080",
+      "/auth": { 
+        target: "http://localhost:8080", 
+        rewrite: (path) => `/api${path}` 
+      }
+    } 
+  },
 });

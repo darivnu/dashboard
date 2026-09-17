@@ -1,12 +1,23 @@
 import { useState } from 'react'
+import { api } from '../api'
 
 export default function Register() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('registro:', { email, password })
+
+    const { data, error } = await api.auth.register.post({ email, password })
+
+    if (error) {
+        console.error(error)
+        alert('Registration failed')
+        return
+    }
+
+    console.log('User created:', data)
+    alert('Account created! Check your email to verify.')
     }
 
     return (
