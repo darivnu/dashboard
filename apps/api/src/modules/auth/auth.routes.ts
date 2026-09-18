@@ -1,7 +1,7 @@
 import { Elysia, t } from 'elysia'
-import { isDev } from '../../config/env'
-import { auth, SESSION_COOKIE } from '../../plugins/session'
+import { auth, sessionCookieOptions, SESSION_COOKIE } from '../../plugins/session'
 import { authService } from './auth.service'
+import { rateLimit } from '../../plugins/rate-limit'
 
 const publicUser = t.Object({
     id: t.String({ format: 'uuid' }),
@@ -21,15 +21,9 @@ const verifyEmailBody = t.Object({
     token: t.String({ minLength: 1, maxLength: 128}),
 })
 
-const cookieOptions = {
-    httpOnly: true,
-    secure: !isDev,
-    sameSite: 'lax',
-    path: '/',
-} as const
-
 export const authRoutes = new Elysia ({ prefix: '/auth'})
     .use(auth)
+    .use(rateLimit)
     .model({
         'auth.credentials': credentialsBody,
         'auth.verifyEmailBody': verifyEmailBody,
@@ -62,7 +56,7 @@ export const authRoutes = new Elysia ({ prefix: '/auth'})
         })
 
         cookie[SESSION_COOKIE].set({
-            ...cookieOptions,
+            ...sessionCookieOptions(),
             value: token,
             expires: expiresAt,
         })
@@ -77,7 +71,7 @@ export const authRoutes = new Elysia ({ prefix: '/auth'})
         await authService.logout(cookie[SESSION_COOKIE].value)
 
         cookie[SESSION_COOKIE].set({
-            ...cookieOptions,
+            ...sessionCookieOptions(),
             value: '',
             expires: new Date(0),
             maxAge: 0,
