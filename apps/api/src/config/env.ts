@@ -35,6 +35,7 @@ function stripTrailingSlash(url: string): string {
 }
 
 //this function is used to parse a comma-separated list of origins into an array of strings
+//this to allow for multiple origins to be specified in the CORS_ORIGINS environment variable
 function parseOrigins(raw: string): string[] {
     return raw
         .split(',')
