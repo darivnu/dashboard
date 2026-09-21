@@ -1,6 +1,6 @@
-  import {
-    pgTable, pgEnum, uuid, text, timestamp,
-    uniqueIndex, index,
+import {
+    pgTable, pgEnum, uuid, text, integer, timestamp, jsonb, boolean,
+    uniqueIndex, index, check,
   } from 'drizzle-orm/pg-core'
   import { sql } from 'drizzle-orm'
 
@@ -58,4 +58,32 @@
   }, (t) => [
     uniqueIndex('sessions_token_hash_idx').on(t.tokenHash),
     index('sessions_user_idx').on(t.userId),
+  ])
+
+  // ---------------------------------------------------------------------------
+  // Dashboard
+  // ---------------------------------------------------------------------------
+
+  /** One widget placed on one user's dashboard. Definitions live in the registry, data in the cache. */
+  export const widgetInstances = pgTable('widget_instances', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    serviceId: text('service_id').notNull(),              // registry ids, validated together
+    widgetId: text('widget_id').notNull(),
+    title: text('title'),                                 // optional user override
+    params: jsonb('params').$type<Record<string, string | number>>().notNull(),
+    refreshSeconds: integer('refresh_seconds').notNull(),
+
+    // grid layout (react-grid-layout units)
+    x: integer('x').notNull().default(0),
+    y: integer('y').notNull().default(0),
+    w: integer('w').notNull().default(4),
+    h: integer('h').notNull().default(3),
+
+    enabled: boolean('enabled').notNull().default(true),
+    ...timestamps,
+  }, (t) => [
+    index('widget_instances_user_idx').on(t.userId),
+    check('widget_instances_refresh_min', sql`${t.refreshSeconds} >= 5`),
+    check('widget_instances_layout_nonneg', sql`${t.x} >= 0 AND ${t.y} >= 0 AND ${t.w} >= 1 AND ${t.h} >= 1`),
   ])

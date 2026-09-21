@@ -38,6 +38,20 @@ describe('validateParams', () => {
         expect(typeof result.days).toBe('number')
     })
 
+    test('drops keys the widget does not declare', () => {
+        const result = validateParams(params, { city: 'Paris', days: 3, junk: { nested: true } })
+
+        expect(result).toEqual({ city: 'Paris', days: 3 })
+    })
+
+    test('does not modify the input it was given', () => {
+        const input = { city: 'Paris', junk: 1 }
+
+        validateParams(params, input)
+
+        expect(input).toEqual({ city: 'Paris', junk: 1 })
+    })
+
     test('throws invalid_config when a required param is missing', () => {
         try {
             validateParams(params, {})
