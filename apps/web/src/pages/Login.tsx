@@ -1,23 +1,24 @@
 import { useState } from 'react'
-import { api } from '../api'
+import { useAuth } from '../auth'
+import { useNavigate } from 'react-router'
 
 export default function Login() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
+    const { login } = useAuth()
+    const navigate = useNavigate()
 
     const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    const { data, error } = await api.auth.login.post({ email, password })
+    const success = await login(email, password)
 
-    if (error) {
-        console.error(error)
+    if (!success) {
         alert('Login failed')
-            return
+        return
     }
 
-    console.log('Logged in:', data)
-    alert('Login successful!')
+    navigate('/dashboard')
     }
 
     return (
