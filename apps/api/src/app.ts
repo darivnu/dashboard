@@ -1,15 +1,19 @@
 import { existsSync } from 'node:fs'
 import { Elysia } from 'elysia'
 import { staticPlugin } from '@elysiajs/static'
-import './services/definitions'
+import { registerServices } from './services/register'
 import { errorHandler } from './lib/errors'
 import { authRoutes } from './modules/auth/auth.routes'
 import { aboutRoutes } from './modules/about/about.routes'
 import { catalogRoutes } from './modules/catalog/catalog.routes'
 import { dashboardRoutes } from './modules/dashboard/dashboard.routes'
 import { openapi } from '@elysiajs/openapi'
-import { isDev } from './config/env'
+import { env, isDev } from './config/env'
 import { SESSION_COOKIE } from './plugins/session'
+
+// Fill the registry once, before any route can read it. Which services end
+// up registered depends on NODE_ENV — see services/register.ts.
+registerServices(env.nodeEnv)
 
 const api = new Elysia({ prefix: '/api' })
     .get('/health', () => ({ ok: true }))
