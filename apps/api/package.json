@@ -2,10 +2,7 @@
     "name": "api",
     "private": true,
     "scripts": {
-        "generate:services": "bun scripts/generate-service-manifest.ts",
-        "predev": "bun run generate:services",
         "dev": "bun run migrate && bun --watch src/server.ts",
-        "prebuild": "bun run generate:services",
         "build": "bun build src/server.ts src/db/migrate.ts --target bun --outdir dist",
         "migrate": "bun src/db/migrate.ts",
         "db:generate": "drizzle-kit generate",

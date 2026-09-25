@@ -63,9 +63,8 @@ export const registry = {
     },
 }
 
-// Services register themselves as a side effect of being imported — see
-// src/services/definitions/ (each file calls registry.register(...) at the
-// bottom) and app.ts's `import './services/definitions'`.
+// Definitions are plain objects in src/services/definitions/; register.ts's
+// registerServices() is the only caller of register() outside tests.
 
 /**
  * Test-only. `bun test` runs every test file in one process, so this module's
