@@ -71,3 +71,5 @@ if (existsSync('../web/dist')) {
         return Bun.file('../web/dist/index.html')
     })
 }
+// Vercel imports this module and serves the exported app as a function.
+export default app
