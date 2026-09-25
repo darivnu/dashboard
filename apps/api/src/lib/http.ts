@@ -5,7 +5,7 @@ import { WidgetFetchError } from '../services/types'
 const TIMEOUT_MS = 10_000
 
 // Trusts the first X-Forwarded-For hop, falling back to the socket address.
-export function getClientIp(request: Request, server: Server | null): string {
+export function getClientIp(request: Request, server: Server<unknown> | null): string {
     const forwardedFor = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
     return forwardedFor || server?.requestIP(request)?.address || ''
 }
