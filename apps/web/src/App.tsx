@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Link } from 'react-router'
 import { AuthProvider } from './auth'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import VerifyEmail from './pages/VerifyEmail'
 import Dashboard from './pages/Dashboard'
 import ProtectedRoute from './components/ProtectedRoute'
 
@@ -18,6 +19,7 @@ function App() {
         <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/dashboard" element={
             <ProtectedRoute>
                 <Dashboard />
