@@ -57,7 +57,7 @@ export const authService = {
         text: [
           'Open this link to verify your email address:',
           '',
-          `${env.appUrl}/verify-email?token=${token}`,
+          `${env.webUrl}/verify-email?token=${token}`,
           '',
           'The link expires in 24 hours. If you did not create an account, ignore this message.',
         ].join('\n'),

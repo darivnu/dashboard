@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { Elysia, NotFoundError } from 'elysia'
 import { staticPlugin } from '@elysiajs/static'
 import { registerServices } from './services/register'
-import { errorHandler } from './lib/errors'
+import { AppError, errorHandler } from './lib/errors'
 import { authRoutes } from './modules/auth/auth.routes'
 import { aboutRoutes } from './modules/about/about.routes'
 import { catalogRoutes } from './modules/catalog/catalog.routes'
@@ -10,6 +10,7 @@ import { dashboardRoutes } from './modules/dashboard/dashboard.routes'
 import { openapi } from '@elysiajs/openapi'
 export type App = typeof app
 import { env, isDev } from './config/env'
+import { cors } from './plugins/cors'
 import { SESSION_COOKIE } from './plugins/session'
 
 // Fill the registry once, before any route can read it. Which services end
@@ -18,10 +19,16 @@ registerServices(env.nodeEnv)
 
 
 const api = new Elysia({ prefix: '/api' })
+    .use(cors)
     .get('/health', () => ({ ok: true }))
     .use(authRoutes)
     .use(catalogRoutes)
     .use(dashboardRoutes)
+    // Catches unknown /api/* paths and unsupported methods before the SPA's
+    // static-file fallback would otherwise serve index.html for them.
+    .all('*', () => {
+        throw new AppError(404, 'NOT_FOUND', 'Route not found')
+    })
 
 if (isDev) {
     api.use(openapi({

@@ -4,8 +4,19 @@ import { db } from '../db/client'
 import { sessions, users } from '../db/schema'
 import { hashToken } from '../lib/tokens'
 import { AppError } from '../lib/errors'
+import { env } from '../config/env'
 
 export const SESSION_COOKIE = 'session'
+
+const isHttps = env.appUrl.startsWith('https://')
+
+// SameSite=None (needed cross-site) only works paired with Secure, so this follows APP_URL's protocol rather than NODE_ENV.
+export function sessionCookieOptions() {
+    if (isHttps) {
+        return { httpOnly: true, secure: true, sameSite: 'none', path: '/' } as const
+    }
+    return { httpOnly: true, secure: false, sameSite: 'lax', path: '/' } as const
+}
 
 export interface SessionUser {
     id: string
