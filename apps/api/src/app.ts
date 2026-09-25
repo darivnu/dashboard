@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { Elysia } from 'elysia'
+import { Elysia, NotFoundError } from 'elysia'
 import { staticPlugin } from '@elysiajs/static'
 import { registerServices } from './services/register'
 import { errorHandler } from './lib/errors'
@@ -54,6 +54,13 @@ export const app = new Elysia()
     .use(api)
     .use(aboutRoutes)
 
+// In production the web build is served from the same origin. Static files
+// are matched first; anything else that isn't an API route falls back to
+// index.html so client-side routes (e.g. /dashboard) survive a hard reload.
 if (existsSync('../web/dist')) {
     app.use(staticPlugin({ assets: '../web/dist', prefix: '/', indexHTML: true }))
+    app.get('/*', ({ path }) => {
+        if (path.startsWith('/api')) throw new NotFoundError()
+        return Bun.file('../web/dist/index.html')
+    })
 }
