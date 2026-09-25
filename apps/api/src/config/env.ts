@@ -43,6 +43,31 @@ function parseOrigins(raw: string): string[] {
         .filter((origin) => origin.length > 0)
 }
 
+export interface SmtpConfig {
+    host: string
+    port: number
+    user: string
+    pass: string
+    /** Sender as it appears in the mail, e.g. `Dashboard <hello@example.com>`. */
+    from: string
+}
+
+// All-or-nothing group. No SMTP_HOST means mails are printed to the console.
+// Once SMTP_HOST is set, the rest is required, so a half-configured relay
+// fails here at boot instead of on the first registration.
+function smtpConfig(): SmtpConfig | null {
+    const host = optional('SMTP_HOST', '')
+    if (host === '') return null
+
+    return {
+        host,
+        port: positiveInteger('SMTP_PORT', '587'),
+        user: required('SMTP_USER'),
+        pass: required('SMTP_PASS'),
+        from: required('MAIL_FROM'),
+    }
+}
+
 const nodeEnv = optional('NODE_ENV', 'development')
 const isProdEnv = nodeEnv === 'production' //weird ass way to see if 2 variables are equal to each other. I hate this language
 
@@ -60,6 +85,7 @@ export const env = {
     webUrl,
     corsOrigins: parseOrigins(optional('CORS_ORIGINS', webUrl)),
     sessionTtlDays: positiveInteger('SESSION_TTL_DAYS', '30'),
+    smtp: smtpConfig(),
 } as const
 
 export const isDev = env.nodeEnv === 'development'
