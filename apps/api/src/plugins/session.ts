@@ -40,15 +40,24 @@ async function loadUser(token: unknown): Promise<SessionUser | null> {
         return user
 }
 
+/** Users found by `transform`, waiting to be picked up by `resolve` of the same request. */
+const authenticated = new WeakMap<Request, SessionUser>()
+
 export const auth = new Elysia({ name: 'auth' })
     .macro({
         auth: {
-            async resolve({ cookie }) {
+            // `transform` runs before body/params validation, so a request
+            // without a session gets 401 even when its body is invalid.
+            async transform({ cookie, request }) {
                 const user = await loadUser(cookie[SESSION_COOKIE].value)
                 if (!user) {
                     throw new AppError(401, 'UNAUTHORIZED', 'Authentication required')
                 }
-                return { user }
+                authenticated.set(request, user)
+            },
+            // Only `resolve` can add a typed `user` to the handler's context.
+            resolve({ request }) {
+                return { user: authenticated.get(request)! }
             },
         },
     })

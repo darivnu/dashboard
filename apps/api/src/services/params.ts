@@ -22,9 +22,15 @@ export function buildParamSchema(params: ParamDef[]) {
     return t.Object(properties)
 }
 
+/**
+ * Returns only the declared params: unknown keys are dropped, defaults are
+ * applied and numeric strings become integers. Works on a copy, so the
+ * caller's `input` is never modified.
+ */
 export function validateParams(params: ParamDef[], input: unknown): WidgetParams {
     const schema = buildParamSchema(params)
-    const withDefaults = Value.Default(schema, input)
+    const declaredOnly = Value.Clean(schema, Value.Clone(input))
+    const withDefaults = Value.Default(schema, declaredOnly)
 
     try {
         return Value.Decode(schema, withDefaults) as WidgetParams
