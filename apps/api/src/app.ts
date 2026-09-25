@@ -8,12 +8,14 @@ import { aboutRoutes } from './modules/about/about.routes'
 import { catalogRoutes } from './modules/catalog/catalog.routes'
 import { dashboardRoutes } from './modules/dashboard/dashboard.routes'
 import { openapi } from '@elysiajs/openapi'
+export type App = typeof app
 import { env, isDev } from './config/env'
 import { SESSION_COOKIE } from './plugins/session'
 
 // Fill the registry once, before any route can read it. Which services end
 // up registered depends on NODE_ENV — see services/register.ts.
 registerServices(env.nodeEnv)
+
 
 const api = new Elysia({ prefix: '/api' })
     .get('/health', () => ({ ok: true }))
