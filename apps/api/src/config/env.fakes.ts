@@ -15,6 +15,7 @@ export const fakeEnv = {
     webUrl: 'http://localhost:5173',
     corsOrigins: ['http://localhost:5173'],
     sessionTtlDays: 30,
+    masterKey: Buffer.alloc(32, 1),
     smtp: null,
 } as const
 

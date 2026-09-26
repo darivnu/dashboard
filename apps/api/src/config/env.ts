@@ -44,6 +44,19 @@ function parseOrigins(raw: string): string[] {
         .filter((origin) => origin.length > 0)
 }
 
+const MASTER_KEY_BYTES = 32
+
+//this function is used to read the key that encrypts stored credentials (AES-256-GCM, see lib/crypto.ts)
+//no fallback on purpose: a missing or malformed key must stop the boot in every environment
+//the error never includes the value, so a wrong key can't end up in the logs (duuhh)
+function masterKey(): Buffer {
+    const key = Buffer.from(required('MASTER_KEY'), 'base64')
+    if (key.length !== MASTER_KEY_BYTES) {
+        throw new Error(`MASTER_KEY must be ${MASTER_KEY_BYTES} bytes encoded in base64 (generate one with: openssl rand -base64 32)`)
+    }
+    return key
+}
+
 export interface SmtpConfig {
     host: string
     port: number
@@ -86,6 +99,7 @@ export const env = {
     webUrl,
     corsOrigins: parseOrigins(optional('CORS_ORIGINS', webUrl)),
     sessionTtlDays: positiveInteger('SESSION_TTL_DAYS', '30'),
+    masterKey: masterKey(),
     smtp: smtpConfig(),
 } as const
 
