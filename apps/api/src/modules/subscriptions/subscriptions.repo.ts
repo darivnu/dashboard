@@ -56,7 +56,7 @@ export const subscriptionsRepo: ServiceSubscriptionRepo = {
             .values({ userId, serviceId, credentials }) //insert the user ID, service ID, and credentials
             .onConflictDoUpdate({ //if a subscription already exists for this user and service, update it
                 target: [serviceSubscriptions.userId, serviceSubscriptions.serviceId], //if a subscription already exists for this user and service, update it
-                set: { credentials, updatedAt: new Date() }, //update the credentials and updatedAt timestamp
+                set: { credentials, updatedAt: new Date(), status: 'active'}, //update the credentials and updatedAt timestamp
             })
             .returning()
         return rows[0]! //exclamation mark is a non-null assertion operator, it tells TypeScript that we are sure that rows[0] is not undefined
