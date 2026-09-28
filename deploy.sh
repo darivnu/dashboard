@@ -55,7 +55,7 @@ git config --local user.name "$OWNER_NAME"
 git config --local user.email "$OWNER_EMAIL"
 echo "Committing as: $OWNER_NAME <$OWNER_EMAIL>"
 
-git commit --allow-empty -m "chore: trigger deployment"
+git commit --allow-empty -m "chore: trigger deployment (deployed by $current_name <$current_email>)"
 
 git push origin main
 
