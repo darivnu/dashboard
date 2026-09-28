@@ -69,6 +69,15 @@ export const subscriptionsRepo: ServiceSubscriptionRepo = {
             .where(ownedBy(userId, serviceId)) //where the userId and serviceId match
             .returning({ id: serviceSubscriptions.id }) //return the ID of the deleted subscription
         return rows.length > 0 //return true if a subscription was deleted, false otherwise
+    },
+
+    async setStatus(userId, serviceId, status) {
+        const rows = await db
+            .update(serviceSubscriptions) //update the serviceSubscriptions table
+            .set({ status, updatedAt: new Date() }) //set the status and updatedAt timestamp
+            .where(ownedBy(userId, serviceId)) //where the userId and serviceId match
+            .returning()
+        return rows[0] //return the updated subscription
     }
 }
 
