@@ -21,8 +21,55 @@ export interface ServiceSubscriptionRepo {
     setStatus(userId: string, serviceId: string, status: SubscriptionStatus): Promise<ServiceSubscriptionInstance | undefined> //update the status of a subscription for a user and a service
 }
 
+//helper funcs:
+function ownedBy(userId: string, serviceId: string) {
+    return and(
+        eq(serviceSubscriptions.userId, userId),
+        eq(serviceSubscriptions.serviceId, serviceId)
+    )
+}
+
 export const subscriptionsRepo: ServiceSubscriptionRepo = {
-    
+    //finds a specific subscription for a user and a service
+    async find(userId, serviceId) {
+        const rows = await db
+            .select() //select everything
+            .from(serviceSubscriptions) //from the serviceSubscriptions table
+            .where(ownedBy(userId, serviceId)) //where the userId and serviceId match
+            .limit(1) //limit to 1 result
+        return rows[0]
+    },
+
+    //lists all subscriptions for a user
+    async listByUser(userId) {
+        return db
+            .select()
+            .from(serviceSubscriptions)
+            .where(eq(serviceSubscriptions.userId, userId)) //all subscriptions for a user
+            .orderBy(asc(serviceSubscriptions.createdAt)) //order by creation date
+    },
+
+    //creates or updates a subscription for a user and a service
+    async upsert(userId, serviceId, credentials) {
+        const rows = await db
+            .insert(serviceSubscriptions) //insert into the serviceSubscriptions table
+            .values({ userId, serviceId, credentials }) //insert the user ID, service ID, and credentials
+            .onConflictDoUpdate({ //if a subscription already exists for this user and service, update it
+                target: [serviceSubscriptions.userId, serviceSubscriptions.serviceId], //if a subscription already exists for this user and service, update it
+                set: { credentials, updatedAt: new Date() }, //update the credentials and updatedAt timestamp
+            })
+            .returning()
+        return rows[0]! //exclamation mark is a non-null assertion operator, it tells TypeScript that we are sure that rows[0] is not undefined
+    },
+
+    //deletes a subscription for a user and a service
+    async delete(userId, serviceId) {
+        const rows = await db
+            .delete(serviceSubscriptions) //delete from the serviceSubscriptions table
+            .where(ownedBy(userId, serviceId)) //where the userId and serviceId match
+            .returning({ id: serviceSubscriptions.id }) //return the ID of the deleted subscription
+        return rows.length > 0 //return true if a subscription was deleted, false otherwise
+    }
 }
 
 
