@@ -14,15 +14,15 @@ import { encrypt, decrypt} from "../lib/crypto"
 //this only works for text data, if you want to encrypt other types of data you will have to create a custom type for that as well.
 export const encryptedText = customType<{data: string; driverData: string}>
 ({
-    dataType: () => "text",
+    dataType: () => "text", //encure postgres column type is text
     toDriver: (v) => encrypt(v),
     fromDriver: (v) => decrypt(v)
 })
 
-//oooh, type definitions
-export const EncryptedJson = <T>(name: string) => customType<{data: T; driverData: string}>
+//oooh, t is type assertion
+export const encryptedJson = <T>(name: string) => customType<{data: T; driverData: string}>
 ({
     dataType: () => "text",
     toDriver: (v) => encrypt(JSON.stringify(v)),
     fromDriver: (v) => JSON.parse(decrypt(v)) as T
-})(name) //the name is used to create a unique type for each json type, so that drizzle can differentiate between them.
+})(name) //name is the postgress column name
