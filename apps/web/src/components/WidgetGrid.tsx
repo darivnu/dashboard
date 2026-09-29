@@ -1,8 +1,10 @@
 type WidgetInstance = {
     id: string
-    type: string
-    config: Record<string, string | number>
-    refreshRate: number
+    serviceId: string
+    widgetId: string
+    title: string | null
+    params: Record<string, string | number>
+    refreshSeconds: number
 }
 
 type Props = {
@@ -20,7 +22,7 @@ export default function WidgetGrid({ widgets, onDelete }: Props) {
         {widgets.map((w) => (
         <div key={w.id} className="bg-gray-800 rounded-xl p-4 flex flex-col gap-2">
             <div className="flex justify-between items-center">
-            <h3 className="text-white font-semibold">{w.type}</h3>
+            <h3 className="text-white font-semibold">{w.title ?? `${w.serviceId} / ${w.widgetId}`}</h3>
             <button
                 onClick={() => onDelete(w.id)}
                 className="text-red-400 hover:text-red-300 text-sm"
@@ -28,8 +30,8 @@ export default function WidgetGrid({ widgets, onDelete }: Props) {
                 Delete
             </button>
             </div>
-            <p className="text-gray-400 text-sm">Config: {JSON.stringify(w.config)}</p>
-            <p className="text-gray-500 text-xs">Refresh: {w.refreshRate}s</p>
+            <p className="text-gray-400 text-sm">Params: {JSON.stringify(w.params)}</p>
+            <p className="text-gray-500 text-xs">Refresh: {w.refreshSeconds}s</p>
         </div>
         ))}
     </div>

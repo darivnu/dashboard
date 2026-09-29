@@ -1,34 +1,48 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../auth'
 import { useNavigate } from 'react-router'
 import WidgetGrid from '../components/WidgetGrid'
+import { api } from '../api'
 
 type WidgetInstance = {
     id: string
-    type: string
-    config: Record<string, string | number>
-    refreshRate: number
+    serviceId: string
+    widgetId: string
+    title: string | null
+    params: Record<string, string | number>
+    refreshSeconds: number
 }
 
 export default function Dashboard() {
     const { user, logout } = useAuth()
     const navigate = useNavigate()
 
-    const [widgets, setWidgets] = useState<WidgetInstance[]>([
-    { id: '1', type: 'weather_city', config: { city: 'Madrid' }, refreshRate: 60 },
-    { id: '2', type: 'weather_city', config: { city: 'Paris' }, refreshRate: 120 },
-    { id: '3', type: 'rss_list', config: { link: 'https://example.com/rss', number: 5 }, refreshRate: 300 },
-    ])
+    const [widgets, setWidgets] = useState<WidgetInstance[]>([])
+
+    useEffect(() => {
+        api.dashboard.instances.get().then(({ data, error }) => {
+            if (error) {
+            console.error(error)
+            return
+            }
+            setWidgets(data?.instances ?? [])
+        })
+    }, [])
 
     const handleLogout = async () => {
     await logout()
     navigate('/login')
     }
 
-    const handleDelete = (id: string) => {
-    setWidgets(widgets.filter(w => w.id !== id))
+    const handleDelete = async (id: string) => {
+        const { error } = await api.dashboard.instances({ id }).delete()
+        if (error) {
+            console.error(error)
+            alert('Failed to delete widget')
+            return
+        }
+        setWidgets(widgets.filter(w => w.id !== id))
     }
-
     return (
     <div className="min-h-screen bg-gray-900">
 
