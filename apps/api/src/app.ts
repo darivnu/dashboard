@@ -7,6 +7,7 @@ import { authRoutes } from './modules/auth/auth.routes'
 import { aboutRoutes } from './modules/about/about.routes'
 import { catalogRoutes } from './modules/catalog/catalog.routes'
 import { dashboardRoutes } from './modules/dashboard/dashboard.routes'
+import { subscriptionsRoutes } from './modules/subscriptions/subscriptions.routes'
 import { openapi } from '@elysiajs/openapi'
 export type App = typeof app
 import { env, isDev } from './config/env'
@@ -24,6 +25,7 @@ const api = new Elysia({ prefix: '/api' })
     .use(authRoutes)
     .use(catalogRoutes)
     .use(dashboardRoutes)
+    .use(subscriptionsRoutes)
     // Catches unknown /api/* paths and unsupported methods before the SPA's
     // static-file fallback would otherwise serve index.html for them.
     .all('*', () => {
@@ -41,6 +43,7 @@ if (isDev) {
             tags: [
                 { name: 'Catalog', description: 'Services and widgets that can be placed on a dashboard' },
                 { name: 'Dashboard', description: 'The current user\'s widget instances, their layout and their data' },
+                { name: 'Subscriptions', description: 'The current user\'s service subscriptions (credentials are write-only)' },
             ],
             components: {
                 securitySchemes: {
