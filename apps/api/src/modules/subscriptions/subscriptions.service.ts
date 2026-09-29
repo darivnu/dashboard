@@ -31,9 +31,10 @@ export function createSubscriptionsService(repo: ServiceSubscriptionRepo) {
                  throw new AppError(400, 'NOT_API_KEY', 'This service does not use an API key') //
             }
 
-            //validate the credentials
+            //validate the credentials; keep the cleaned copy (unknown keys dropped, defaults filled in)
+            let validated: Record<string, unknown>
             try {
-                validateParams(service.auth.fields, credentials)
+                validated = validateParams(service.auth.fields, credentials)
             } catch (error) {
                 if (error instanceof WidgetFetchError) {
                     throw new AppError(400, 'INVALID_CREDENTIALS', error.message)
@@ -41,7 +42,7 @@ export function createSubscriptionsService(repo: ServiceSubscriptionRepo) {
                 throw error
             }
 
-            return repo.upsert(userId, serviceId, credentials) //create or update the subscription
+            return repo.upsert(userId, serviceId, validated) //create or update the subscription
         },
 
         async unsubscribe(userId: string, serviceId: string) {
