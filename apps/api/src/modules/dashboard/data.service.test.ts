@@ -4,6 +4,7 @@ import { AppError } from '../../lib/errors'
 import { __resetRegistryForTests, registry } from '../../services/registry'
 import { WidgetFetchError } from '../../services/types'
 import type { FetchCtx, HttpClient, ServiceAuth, WidgetParams } from '../../services/types'
+import { createFakeSubscriptionsRepo } from '../subscriptions/subscriptions.fakes'
 import { createFakeRepo, fakeService, fakeWidget } from './dashboard.fakes'
 import { createDataService } from './data.service'
 import type { CachedWidgetData } from './data.service'
@@ -20,6 +21,7 @@ const fakeHttp: HttpClient = {
 
 let clock: { ms: number }
 let repo: ReturnType<typeof createFakeRepo>
+let subscriptions: ReturnType<typeof createFakeSubscriptionsRepo>
 let service: ReturnType<typeof createDataService>
 let fetchCalls: { ctx: FetchCtx; params: WidgetParams }[]
 let fetchImpl: (params: WidgetParams) => Promise<unknown>
@@ -43,8 +45,10 @@ beforeEach(() => {
     }))
 
     repo = createFakeRepo()
+    subscriptions = createFakeSubscriptionsRepo()
     service = createDataService({
         repo,
+        subscriptions,
         http: fakeHttp,
         cache: createTtlCache<CachedWidgetData>({ now: () => clock.ms }),
         now: () => new Date(clock.ms),
@@ -205,25 +209,135 @@ describe('error mapping', () => {
         expect(await service.getInstanceData(ALICE, instance.id)).toEqual({ ok: false, code: 'invalid_config' })
         expect(fetchCalls).toHaveLength(0)
     })
+})
 
-    test('services that need credentials answer needs_reauth without calling fetch', async () => {
-        const services: [string, ServiceAuth][] = [
-            ['keyed', { kind: 'apiKey', fields: [] }],
-            ['oauthed', { kind: 'oauth2', provider: 'github', scopes: [] }],
-        ]
+describe('authenticated services', () => {
+    const KEYED = 'keyed'
 
-        for (const [id, auth] of services) {
-            let called = false
-            registry.register(fakeService({
-                id,
-                auth,
-                widgets: [fakeWidget({ fetch: async () => { called = true } })],
-            }))
-            const instance = await addInstance({ city: 'Paris' }, { serviceId: id })
+    beforeEach(() => {
+        registry.register(fakeService({
+            id: KEYED,
+            auth: { kind: 'apiKey', fields: [{ name: 'apiKey', type: 'string', label: 'API key', required: true }] },
+            widgets: [
+                fakeWidget({
+                    refresh: { default: 3600, min: TTL_SECONDS },
+                    fetch: async (ctx, params) => {
+                        fetchCalls.push({ ctx, params })
+                        return fetchImpl(params)
+                    },
+                }),
+            ],
+        }))
+    })
 
-            expect(await service.getInstanceData(ALICE, instance.id)).toEqual({ ok: false, code: 'needs_reauth' })
-            expect(called).toBe(false)
+    function addKeyedInstance(userId = ALICE) {
+        return addInstance({ city: 'Paris', days: 3 }, { userId, serviceId: KEYED })
+    }
+
+    test('without a subscription: needs_reauth and fetch is never called', async () => {
+        registry.register(fakeService({
+            id: 'oauthed',
+            auth: { kind: 'oauth2', provider: 'github', scopes: [] },
+            widgets: [fakeWidget({ fetch: async (ctx, params) => { fetchCalls.push({ ctx, params }) } })],
+        }))
+        const keyed = await addKeyedInstance()
+        const oauthed = await addInstance({ city: 'Paris' }, { serviceId: 'oauthed' })
+
+        expect(await service.getInstanceData(ALICE, keyed.id)).toEqual({ ok: false, code: 'needs_reauth' })
+        expect(await service.getInstanceData(ALICE, oauthed.id)).toEqual({ ok: false, code: 'needs_reauth' })
+        expect(fetchCalls).toHaveLength(0)
+    })
+
+    test('passes the stored credentials to fetch', async () => {
+        await subscriptions.upsert(ALICE, KEYED, { apiKey: 'alice-key' })
+        const instance = await addKeyedInstance()
+
+        const result = await service.getInstanceData(ALICE, instance.id)
+
+        expect(result).toMatchObject({ ok: true })
+        expect(fetchCalls[0]!.ctx).toEqual({ http: fakeHttp, credentials: { apiKey: 'alice-key' } })
+    })
+
+    test('a needs_reauth from the widget flags the subscription and later requests skip fetch', async () => {
+        await subscriptions.upsert(ALICE, KEYED, { apiKey: 'wrong' })
+        const instance = await addKeyedInstance()
+        fetchImpl = async () => {
+            throw new WidgetFetchError('needs_reauth', 'key rejected')
         }
+
+        const first = await service.getInstanceData(ALICE, instance.id)
+        const second = await service.getInstanceData(ALICE, instance.id)
+
+        expect(first).toEqual({ ok: false, code: 'needs_reauth' })
+        expect(second).toEqual({ ok: false, code: 'needs_reauth' })
+        expect(subscriptions.rows[0]!.status).toBe('needs_reauth')
+        expect(fetchCalls).toHaveLength(1)
+    })
+
+    test('other widget errors leave the subscription active', async () => {
+        await subscriptions.upsert(ALICE, KEYED, { apiKey: 'alice-key' })
+        const instance = await addKeyedInstance()
+        fetchImpl = async () => {
+            throw new WidgetFetchError('rate_limited', 'slow down')
+        }
+
+        expect(await service.getInstanceData(ALICE, instance.id)).toEqual({ ok: false, code: 'rate_limited' })
+        expect(subscriptions.rows[0]!.status).toBe('active')
+    })
+
+    test('storing a new key after needs_reauth makes the widget work again', async () => {
+        await subscriptions.upsert(ALICE, KEYED, { apiKey: 'wrong' })
+        await subscriptions.setStatus(ALICE, KEYED, 'needs_reauth')
+        const instance = await addKeyedInstance()
+
+        await subscriptions.upsert(ALICE, KEYED, { apiKey: 'alice-key' })
+        const result = await service.getInstanceData(ALICE, instance.id)
+
+        expect(result).toMatchObject({ ok: true })
+        expect(fetchCalls[0]!.ctx.credentials).toEqual({ apiKey: 'alice-key' })
+    })
+
+    test('after unsubscribing, a cached result is no longer served', async () => {
+        await subscriptions.upsert(ALICE, KEYED, { apiKey: 'alice-key' })
+        const instance = await addKeyedInstance()
+        await service.getInstanceData(ALICE, instance.id)
+
+        await subscriptions.delete(ALICE, KEYED)
+        const after = await service.getInstanceData(ALICE, instance.id)
+
+        expect(after).toEqual({ ok: false, code: 'needs_reauth' })
+        expect(fetchCalls).toHaveLength(1)
+    })
+
+    test('two users with different keys and identical params are fetched independently', async () => {
+        await subscriptions.upsert(ALICE, KEYED, { apiKey: 'alice-key' })
+        await subscriptions.upsert(BOB, KEYED, { apiKey: 'bob-key' })
+        const alices = await addKeyedInstance(ALICE)
+        const bobs = await addKeyedInstance(BOB)
+
+        await service.getInstanceData(ALICE, alices.id)
+        await service.getInstanceData(BOB, bobs.id)
+
+        expect(fetchCalls).toHaveLength(2)
+        expect(fetchCalls.map((call) => call.ctx.credentials)).toEqual([{ apiKey: 'alice-key' }, { apiKey: 'bob-key' }])
+    })
+
+    test('if flagging the subscription fails, the result is still needs_reauth', async () => {
+        const consoleError = spyOn(console, 'error').mockImplementation(() => {})
+        await subscriptions.upsert(ALICE, KEYED, { apiKey: 'wrong' })
+        subscriptions.setStatus = async () => {
+            throw new Error('db down')
+        }
+        const instance = await addKeyedInstance()
+        fetchImpl = async () => {
+            throw new WidgetFetchError('needs_reauth', 'key rejected')
+        }
+
+        const result = await service.getInstanceData(ALICE, instance.id)
+
+        expect(result).toEqual({ ok: false, code: 'needs_reauth' })
+        expect(consoleError).toHaveBeenCalledTimes(1)
+        consoleError.mockRestore()
     })
 })
 

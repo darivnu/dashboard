@@ -5,12 +5,15 @@ import { createFakeRepo } from '../modules/dashboard/dashboard.fakes'
 import { createDashboardService } from '../modules/dashboard/dashboard.service'
 import { createDataService } from '../modules/dashboard/data.service'
 import type { CachedWidgetData } from '../modules/dashboard/data.service'
+import { createFakeSubscriptionsRepo } from '../modules/subscriptions/subscriptions.fakes'
+import { createSubscriptionsService } from '../modules/subscriptions/subscriptions.service'
+import { MOCK_API_KEY } from './definitions/mock'
 import { registerServices } from './register'
 import { __resetRegistryForTests } from './registry'
 import type { HttpClient, WidgetFetchErrorCode } from './types'
 
-// Exercises the mock services through the same two services the HTTP routes
-// call (instance creation, then the data endpoint), with an in-memory repo.
+// Exercises the mock services through the same services the HTTP routes call
+// (subscription, instance creation, then the data endpoint), with in-memory repos.
 // The route layer itself is covered by dashboard.routes.test.ts.
 
 const ALICE = 'user-alice'
@@ -23,14 +26,23 @@ const fakeHttp: HttpClient = {
 
 let dashboard: ReturnType<typeof createDashboardService>
 let data: ReturnType<typeof createDataService>
+let subscriptionsRepo: ReturnType<typeof createFakeSubscriptionsRepo>
+let subscriptions: ReturnType<typeof createSubscriptionsService>
 
 beforeEach(() => {
     __resetRegistryForTests()
     registerServices('development')
 
     const repo = createFakeRepo()
+    subscriptionsRepo = createFakeSubscriptionsRepo()
     dashboard = createDashboardService(repo)
-    data = createDataService({ repo, http: fakeHttp, cache: createTtlCache<CachedWidgetData>() })
+    subscriptions = createSubscriptionsService(subscriptionsRepo)
+    data = createDataService({
+        repo,
+        subscriptions: subscriptionsRepo,
+        http: fakeHttp,
+        cache: createTtlCache<CachedWidgetData>(),
+    })
 })
 
 async function createAndFetch(serviceId: string, widgetId: string, params: Record<string, unknown>) {
@@ -78,11 +90,57 @@ describe('mock / echo through the data endpoint', () => {
 })
 
 describe('mock_key / secret_echo', () => {
-    test('is needs_reauth while no credential can reach fetch()', async () => {
+    test('without a subscription it is needs_reauth', async () => {
         expect(await createAndFetch('mock_key', 'secret_echo', { message: 'secret' })).toEqual({
             ok: false,
             code: 'needs_reauth',
         })
+    })
+
+    test('with the documented key it returns ok: true', async () => {
+        await subscriptions.subscribe(ALICE, 'mock_key', { apiKey: MOCK_API_KEY })
+
+        const result = await createAndFetch('mock_key', 'secret_echo', { message: 'secret' })
+
+        expect(result).toMatchObject({ ok: true, data: { message: 'secret' } })
+        expect(subscriptionsRepo.rows[0]!.status).toBe('active')
+    })
+
+    test('with a wrong key it is needs_reauth and the subscription is flagged', async () => {
+        await subscriptions.subscribe(ALICE, 'mock_key', { apiKey: 'not-the-key' })
+
+        const result = await createAndFetch('mock_key', 'secret_echo', { message: 'secret' })
+
+        expect(result).toEqual({ ok: false, code: 'needs_reauth' })
+        expect(subscriptionsRepo.rows[0]!.status).toBe('needs_reauth')
+    })
+
+    test('fixing the key after needs_reauth makes the same instance work', async () => {
+        await subscriptions.subscribe(ALICE, 'mock_key', { apiKey: 'not-the-key' })
+        const instance = await dashboard.create(ALICE, {
+            serviceId: 'mock_key',
+            widgetId: 'secret_echo',
+            params: { message: 'secret' },
+        })
+        await data.getInstanceData(ALICE, instance.id)
+
+        await subscriptions.subscribe(ALICE, 'mock_key', { apiKey: MOCK_API_KEY })
+
+        expect(await data.getInstanceData(ALICE, instance.id)).toMatchObject({ ok: true })
+    })
+
+    test('after unsubscribing, an existing instance is needs_reauth again', async () => {
+        await subscriptions.subscribe(ALICE, 'mock_key', { apiKey: MOCK_API_KEY })
+        const instance = await dashboard.create(ALICE, {
+            serviceId: 'mock_key',
+            widgetId: 'secret_echo',
+            params: { message: 'secret' },
+        })
+        await data.getInstanceData(ALICE, instance.id)
+
+        await subscriptions.unsubscribe(ALICE, 'mock_key')
+
+        expect(await data.getInstanceData(ALICE, instance.id)).toEqual({ ok: false, code: 'needs_reauth' })
     })
 })
 

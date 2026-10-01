@@ -3,6 +3,7 @@ import { Type } from '@sinclair/typebox'
 import { createTtlCache } from '../../lib/cache'
 import { httpClient } from '../../lib/http'
 import { auth } from '../../plugins/session'
+import { subscriptionsRepo } from '../subscriptions/subscriptions.repo'
 import { dashboardRepo } from './dashboard.repo'
 import type { WidgetInstance } from './dashboard.repo'
 import { createDashboardService } from './dashboard.service'
@@ -16,6 +17,7 @@ const MAX_LAYOUT_ITEMS = 200
 const dashboardService = createDashboardService(dashboardRepo)
 const dataService = createDataService({
     repo: dashboardRepo,
+    subscriptions: subscriptionsRepo,
     http: httpClient,
     cache: createTtlCache<CachedWidgetData>(),
 })
