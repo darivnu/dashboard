@@ -100,14 +100,20 @@ export interface WidgetCacheKeyParts {
     widgetId: string
     /** Must be the validated params: defaults applied, integers coerced. */
     params: WidgetParams
+    /**
+     * Set for authenticated services, so users with different credentials
+     * never share an entry. The id, never the credentials themselves: secrets
+     * must not end up in cache keys.
+     */
+    subscriptionId?: string
 }
 
 /**
- * Callers pass named parts and never assemble the key themselves. When
- * authenticated services arrive, `subscriptionId` becomes one more optional
- * part appended here, and no caller changes.
+ * Callers pass named parts and never assemble the key themselves. Without a
+ * `subscriptionId` the key is unchanged from the unauthenticated format.
  */
 export function buildWidgetCacheKey(parts: WidgetCacheKeyParts): string {
     const segments = [parts.serviceId, parts.widgetId, stableHash(parts.params)]
+    if (parts.subscriptionId !== undefined) segments.push(parts.subscriptionId)
     return segments.map(encodeURIComponent).join(':')
 }

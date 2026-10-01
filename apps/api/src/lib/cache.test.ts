@@ -126,4 +126,16 @@ describe('buildWidgetCacheKey', () => {
 
         expect(one).not.toBe(two)
     })
+
+    test('differs per subscription, so two users never share an entry', () => {
+        const alice = buildWidgetCacheKey({ ...base, subscriptionId: 'sub-alice' })
+        const bob = buildWidgetCacheKey({ ...base, subscriptionId: 'sub-bob' })
+
+        expect(alice).not.toBe(bob)
+        expect(alice).not.toBe(buildWidgetCacheKey(base))
+    })
+
+    test('keeps the unauthenticated format when there is no subscription', () => {
+        expect(buildWidgetCacheKey(base)).toBe(`weather:forecast:${stableHash(base.params)}`)
+    })
 })
