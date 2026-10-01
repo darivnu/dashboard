@@ -1,3 +1,5 @@
+import { getWidgetComponent } from './widgetRegistry'
+
 type WidgetInstance = {
     id: string
     serviceId: string
@@ -30,8 +32,12 @@ export default function WidgetGrid({ widgets, onDelete }: Props) {
                 Delete
             </button>
             </div>
-            <p className="text-gray-400 text-sm">Params: {JSON.stringify(w.params)}</p>
-            <p className="text-gray-500 text-xs">Refresh: {w.refreshSeconds}s</p>
+            <div className="mt-2">
+                {(() => {
+                const Widget = getWidgetComponent(w.serviceId, w.widgetId)
+                return <Widget instanceId={w.id} params={w.params} refreshSeconds={w.refreshSeconds} />
+                })()}
+            </div>
         </div>
         ))}
     </div>
