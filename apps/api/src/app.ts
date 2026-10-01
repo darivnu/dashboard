@@ -9,15 +9,11 @@ import { catalogRoutes } from './modules/catalog/catalog.routes'
 import { dashboardRoutes } from './modules/dashboard/dashboard.routes'
 import { subscriptionsRoutes } from './modules/subscriptions/subscriptions.routes'
 import { openapi } from '@elysiajs/openapi'
-export type App = typeof app
 import { env, isDev } from './config/env'
 import { cors } from './plugins/cors'
 import { SESSION_COOKIE } from './plugins/session'
 
-// Fill the registry once, before any route can read it. Which services end
-// up registered depends on NODE_ENV — see services/register.ts.
 registerServices(env.nodeEnv)
-
 
 const api = new Elysia({ prefix: '/api' })
     .use(cors)
@@ -26,8 +22,6 @@ const api = new Elysia({ prefix: '/api' })
     .use(catalogRoutes)
     .use(dashboardRoutes)
     .use(subscriptionsRoutes)
-    // Catches unknown /api/* paths and unsupported methods before the SPA's
-    // static-file fallback would otherwise serve index.html for them.
     .all('*', () => {
         throw new AppError(404, 'NOT_FOUND', 'Route not found')
     })
@@ -64,9 +58,6 @@ export const app = new Elysia()
     .use(api)
     .use(aboutRoutes)
 
-// In production the web build is served from the same origin. Static files
-// are matched first; anything else that isn't an API route falls back to
-// index.html so client-side routes (e.g. /dashboard) survive a hard reload.
 if (existsSync('../web/dist')) {
     app.use(staticPlugin({ assets: '../web/dist', prefix: '/', indexHTML: true }))
     app.get('/*', ({ path }) => {
@@ -74,5 +65,6 @@ if (existsSync('../web/dist')) {
         return Bun.file('../web/dist/index.html')
     })
 }
-// Vercel imports this module and serves the exported app as a function.
+
 export default app
+export type App = typeof app
