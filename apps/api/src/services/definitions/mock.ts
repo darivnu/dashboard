@@ -10,7 +10,8 @@
  * Two services are defined here because `auth` is per service, and we want a
  * template for each auth kind that doesn't need an OAuth provider:
  *   - `mock`      auth.kind 'none'    → the data endpoint calls fetch() directly
- *   - `mock_key`  auth.kind 'apiKey'  → the user must store a key first
+ *   - `mock_key`  auth.kind 'apiKey'  → the user must subscribe with a key first;
+ *                                       the data endpoint passes it as ctx.credentials
  *
  * Only registered outside production (see index.ts `devOnlyServices`).
  */
@@ -18,8 +19,8 @@ import type { ParamDef, ServiceDef, WidgetFetchErrorCode, WidgetParams } from '.
 import { WidgetFetchError } from '../types'
 
 /**
- * The only key `secret_echo` will accept once credentials exist. Exported so a
- * test or a curl session can reference it instead of retyping the literal.
+ * The only key `secret_echo` accepts. Exported so a test or a curl session can
+ * reference it instead of retyping the literal.
  */
 export const MOCK_API_KEY = 'mock-secret-key'
 
@@ -179,8 +180,9 @@ export const mockKeyService: ServiceDef = {
      * service can be used, and tells the data endpoint that fetch() needs a
      * credential. `fields` use the same ParamDef shape as widget params (same
      * types, same validation) and appear in /api/catalog under `auth.fields`.
-     * Storing the key is issue #8; until then the data endpoint answers
-     * `needs_reauth` for every apiKey service without calling fetch().
+     * The user stores them with `POST /api/subscriptions/:service`. Without an
+     * active subscription the data endpoint answers `needs_reauth` without
+     * calling fetch().
      */
     auth: {
         kind: 'apiKey',
@@ -211,20 +213,24 @@ export const mockKeyService: ServiceDef = {
             refresh: { default: 60, min: 5 },
 
             /**
-             * Shows where a real apiKey service reads its credential. Today
-             * FetchCtx has no `credentials` field, so the key is always
-             * "absent" and this throws `needs_reauth` — which is also what a
-             * real service must do when the upstream rejects the key.
-             * When issue #8 adds `ctx.credentials`, replace the unconditional
-             * throw with: `if (ctx.credentials?.apiKey !== MOCK_API_KEY) throw …`.
+             * Shows where a real apiKey service reads its credential:
+             * `ctx.credentials`, keyed by the names in `auth.fields`. A real
+             * service sends the key upstream and lets `ctx.http` turn a 401/403
+             * into `needs_reauth`; the mock compares it locally instead.
+             * Throwing `needs_reauth` makes the data endpoint flag the
+             * subscription, so the user is asked for a new key.
              */
-            async fetch(_ctx, params) {
+            async fetch(ctx, params) {
                 failIfRequested(params)
 
-                throw new WidgetFetchError(
-                    'needs_reauth',
-                    'mock_key: no API key available in FetchCtx yet (see issue #8)',
-                )
+                if (ctx.credentials?.apiKey !== MOCK_API_KEY) {
+                    throw new WidgetFetchError('needs_reauth', 'mock_key: API key rejected')
+                }
+
+                return {
+                    message: String(params.message),
+                    timestamp: new Date().toISOString(),
+                }
             },
         },
     ],
