@@ -22,12 +22,18 @@ export interface HttpClient {
 }
 
 /**
- * Additive by design: a later phase adds `credentials` (the service's
- * stored auth config) and `getAccessToken()` (for oauth2 services) as
- * further optional fields, without breaking this shape.
+ * Context for fetching widget data.
+ *
+ * Additive by design: a later phase adds `getAccessToken()` (for oauth2
+ * services) as a further optional field, without breaking this shape.
  */
 export interface FetchCtx {
     http: HttpClient
+    /**
+     * The user's stored credentials for an apiKey service, keyed by the names
+     * in "auth.fields". Absent for "auth.kind === 'none'".
+     */
+    credentials?: Record<string, string | number> //the question mark is because this is only present for apiKey services, not oauth2 or none
 }
 
 export interface WidgetDef {
