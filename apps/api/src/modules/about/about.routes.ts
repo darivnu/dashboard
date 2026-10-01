@@ -1,5 +1,7 @@
 import { Elysia, t } from 'elysia'
 import { registry } from '../../services/registry'
+import { getClientIp } from '../../lib/http'
+import { cors } from '../../plugins/cors'
 
 const paramSchema = t.Object({
     name: t.String(),
@@ -18,6 +20,7 @@ const serviceSchema = t.Object({
 })
 
 export const aboutRoutes = new Elysia()
+    .use(cors)
     .model({
         'about.response': t.Object({
             client: t.Object({
@@ -30,8 +33,7 @@ export const aboutRoutes = new Elysia()
         }),
     })
     .get('/about.json', ({ request, server }) => {
-        const forwardedFor = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-        const host = forwardedFor || server?.requestIP(request)?.address || ''
+        const host = getClientIp(request, server)
 
         return {
             client: { host },
