@@ -5,6 +5,7 @@ import { createFakeRepo } from '../modules/dashboard/dashboard.fakes'
 import { createDashboardService } from '../modules/dashboard/dashboard.service'
 import { createDataService } from '../modules/dashboard/data.service'
 import type { CachedWidgetData } from '../modules/dashboard/data.service'
+import { createFakeSubscriptionsRepo } from '../modules/subscriptions/subscriptions.fakes'
 import { registerServices } from './register'
 import { __resetRegistryForTests } from './registry'
 import type { HttpClient, WidgetFetchErrorCode } from './types'
@@ -30,7 +31,12 @@ beforeEach(() => {
 
     const repo = createFakeRepo()
     dashboard = createDashboardService(repo)
-    data = createDataService({ repo, http: fakeHttp, cache: createTtlCache<CachedWidgetData>() })
+    data = createDataService({
+        repo,
+        subscriptions: createFakeSubscriptionsRepo(),
+        http: fakeHttp,
+        cache: createTtlCache<CachedWidgetData>(),
+    })
 })
 
 async function createAndFetch(serviceId: string, widgetId: string, params: Record<string, unknown>) {
