@@ -1,22 +1,43 @@
-import { beforeEach, describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, mock, test } from 'bun:test'
 import { Elysia } from 'elysia'
-import { ALICE, fakeSession, loggedIn } from '../../plugins/session.fakes'
+import { ALICE, BOB, fakeSession, loggedIn } from '../../plugins/session.fakes'
 import { errorHandler } from '../../lib/errors'
 import { __resetRegistryForTests, registry } from '../../services/registry'
 import type { ServiceDef } from '../../services/types'
+import { createFakeSubscriptionsRepo } from '../subscriptions/subscriptions.fakes'
+
+// The routes file reads subscriptions through the real Drizzle repo; swap it
+// for the in-memory one before loading the routes.
+const repo = createFakeSubscriptionsRepo()
+mock.module('../subscriptions/subscriptions.repo', () => ({ subscriptionsRepo: repo }))
 
 // Loaded after session.fakes has replaced db/client.
 const { catalogRoutes } = await import('./catalog.routes')
 
 const app = new Elysia().use(errorHandler).use(catalogRoutes)
 
+// A fake API key: the catalog must never send it back.
+const SECRET = 'super-secret-key-123'
+
 async function getCatalog(headers?: Record<string, string>) {
     const response = await app.handle(new Request('http://localhost/catalog', { headers }))
-    return { status: response.status, body: await response.json() }
+    const text = await response.text()
+    return { status: response.status, body: JSON.parse(text), text }
+}
+
+// Registers an apiKey service, so there is something to subscribe to.
+function registerStocks() {
+    registry.register({
+        id: 'stocks',
+        name: 'Stocks',
+        auth: { kind: 'apiKey', fields: [{ name: 'apiKey', type: 'string', label: 'API key', required: true }] },
+        widgets: [],
+    })
 }
 
 beforeEach(() => {
     __resetRegistryForTests()
+    repo.rows.length = 0 //empty the fake table between tests
     fakeSession.user = ALICE
 })
 
@@ -84,6 +105,7 @@ describe('GET /catalog', () => {
                             refresh: { default: 3600, min: 300 },
                         },
                     ],
+                    subscription: null,
                 },
             ],
         })
@@ -119,5 +141,64 @@ describe('GET /catalog', () => {
         const { body } = await getCatalog(loggedIn)
 
         expect(body.services.map((service: { id: string }) => service.id)).toEqual(['one', 'two'])
+    })
+})
+
+describe('GET /catalog subscription status (#24)', () => {
+    test('is null when the user is not subscribed', async () => {
+        registerStocks()
+
+        const { body } = await getCatalog(loggedIn)
+
+        expect(body.services[0].subscription).toBeNull()
+    })
+
+    test('is { status: "active" } when the user is subscribed', async () => {
+        registerStocks()
+        await repo.upsert(ALICE.id, 'stocks', { apiKey: SECRET })
+
+        const { body } = await getCatalog(loggedIn)
+
+        expect(body.services[0].subscription).toEqual({ status: 'active' })
+    })
+
+    test('reflects needs_reauth', async () => {
+        registerStocks()
+        await repo.upsert(ALICE.id, 'stocks', { apiKey: SECRET })
+        await repo.setStatus(ALICE.id, 'stocks', 'needs_reauth')
+
+        const { body } = await getCatalog(loggedIn)
+
+        expect(body.services[0].subscription).toEqual({ status: 'needs_reauth' })
+    })
+
+    test('each service gets its own status', async () => {
+        registry.register({ id: 'radio', name: 'Radio', auth: { kind: 'none' }, widgets: [] })
+        registerStocks()
+        await repo.upsert(ALICE.id, 'stocks', { apiKey: SECRET })
+
+        const { body } = await getCatalog(loggedIn)
+
+        expect(body.services[0].subscription).toBeNull()
+        expect(body.services[1].subscription).toEqual({ status: 'active' })
+    })
+
+    test('another user\'s subscription does not show up', async () => {
+        registerStocks()
+        await repo.upsert(BOB.id, 'stocks', { apiKey: SECRET })
+
+        const { body } = await getCatalog(loggedIn) //logged in as Alice
+
+        expect(body.services[0].subscription).toBeNull()
+    })
+
+    test('the response contains no credentials', async () => {
+        registerStocks()
+        await repo.upsert(ALICE.id, 'stocks', { apiKey: SECRET })
+
+        const { text } = await getCatalog(loggedIn)
+
+        expect(text).not.toContain(SECRET)
+        expect(text).not.toContain('credentials')
     })
 })
