@@ -136,9 +136,13 @@ export const catalogRoutes = new Elysia({
         'catalog.response': catalogResponse,
         'catalog.error': errorResponse,
     })
-    .get('', () => ({
-        services: registry.listServices().map(toService),
-    }), {
+    .get('', async({user}) => { //figure out who is asking
+        const rows = await subscriptionsRepo.listByUser(user.id) //get all the subscriptions for this user,
+        const satusByService = new Map(rows.map(row => [row.serviceId, row.status])) //map the serviceId to the status of the subscription
+        return {
+            services: registry.listServices().map(service => toService(service, satusByService.get(service.id))) //get all the services and map them to the service schema, including the subscription status
+        }
+    }, {
         auth: true,
         response: {
             200: 'catalog.response',
