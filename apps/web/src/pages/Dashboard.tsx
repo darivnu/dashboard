@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../auth'
 import { useNavigate } from 'react-router'
+import AddWidgetModal from '../components/AddWidgetModal'
 import WidgetGrid from '../components/WidgetGrid'
 import { api } from '../api'
 
@@ -18,16 +19,24 @@ export default function Dashboard() {
     const navigate = useNavigate()
 
     const [widgets, setWidgets] = useState<WidgetInstance[]>([])
+    const [modalOpen, setModalOpen] = useState(false)
 
     useEffect(() => {
         api.dashboard.instances.get().then(({ data, error }) => {
             if (error) {
-            console.error(error)
-            return
+                console.error(error)
+                return
             }
             setWidgets(data?.instances ?? [])
         })
     }, [])
+
+    const reloadWidgets = () => {
+        api.dashboard.instances.get().then(({ data, error }) => {
+            if (error) return
+            setWidgets(data?.instances ?? [])
+        })
+    }
 
     const handleLogout = async () => {
     await logout()
@@ -49,7 +58,7 @@ export default function Dashboard() {
         <header className="flex justify-between items-center p-4 bg-gray-800 text-white">
         <h1 className="text-xl font-bold">My Dashboard</h1>
         <div className="flex items-center gap-4">
-            <button className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 transition">
+            <button onClick={() => setModalOpen(true)} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 transition">
             Add Widget
             </button>
             <span className="text-gray-300">{user?.email}</span>
@@ -65,7 +74,7 @@ export default function Dashboard() {
         <main className="p-6">
         <WidgetGrid widgets={widgets} onDelete={handleDelete} />
         </main>
-
+        <AddWidgetModal open={modalOpen} onClose={() => setModalOpen(false)} onCreated={reloadWidgets} />
     </div>
     )
 }
