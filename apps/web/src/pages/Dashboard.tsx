@@ -12,6 +12,10 @@ type WidgetInstance = {
     title: string | null
     params: Record<string, string | number>
     refreshSeconds: number
+    x: number
+    y: number
+    w: number
+    h: number
 }
 
 export default function Dashboard() {
@@ -52,6 +56,45 @@ export default function Dashboard() {
         }
         setWidgets(widgets.filter(w => w.id !== id))
     }
+
+    const handleMove = async (id: string, direction: 'left' | 'right') => {
+        const index = widgets.findIndex(w => w.id === id)
+        if (index === -1) return
+    
+        const newWidgets = [...widgets]
+        if (direction === 'left' && index > 0) {
+            [newWidgets[index - 1], newWidgets[index]] = [newWidgets[index], newWidgets[index - 1]]
+        } else if (direction === 'right' && index < newWidgets.length - 1) {
+            [newWidgets[index], newWidgets[index + 1]] = [newWidgets[index + 1], newWidgets[index]]
+        } else {
+            return
+        }
+    
+        setWidgets(newWidgets)
+    
+        // Actualiza las posiciones en el back
+        const updates = newWidgets.map((w, i) => ({
+            id: w.id,
+            x: i * 4,
+            y: w.y,
+            w: w.w,
+            h: w.h,
+        }))
+    
+        const res = await fetch('/api/dashboard/layout', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(updates)
+        })
+    
+        if (!res.ok) {
+            const err = await res.json()
+            console.error(err)
+            reloadWidgets()
+        }
+    }
+
     return (
     <div className="min-h-screen bg-gray-900">
 
@@ -72,7 +115,7 @@ export default function Dashboard() {
         </header>
 
         <main className="p-6">
-        <WidgetGrid widgets={widgets} onDelete={handleDelete} />
+        <WidgetGrid widgets={widgets} onDelete={handleDelete} onMove={handleMove} />
         </main>
         <AddWidgetModal open={modalOpen} onClose={() => setModalOpen(false)} onCreated={reloadWidgets} />
     </div>

@@ -69,16 +69,31 @@ export default function AddWidgetModal({ open, onClose, onCreated }: Props) {
         }
     })
 
-    const { error } = await api.dashboard.instances.post({
+        console.log('Sending:', {
         serviceId: selected.service.id,
         widgetId: selected.widget.id,
         params: parsed,
         refreshSeconds,
     })
 
-    if (error) {
-        console.error(error)
-        alert('Failed to create widget')
+    console.log('Sending params:', JSON.stringify(parsed))
+
+    const res = await fetch('/api/dashboard/instances', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+            serviceId: selected.service.id,
+            widgetId: selected.widget.id,
+            params: parsed,
+            refreshSeconds,
+        })
+    })
+    const resData = await res.json()
+    console.log('Response:', resData)
+
+    if (!res.ok) {
+        alert('Failed: ' + JSON.stringify(resData))
         return
     }
 
