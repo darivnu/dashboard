@@ -3,6 +3,8 @@ import { Type } from '@sinclair/typebox'
 import { auth } from '../../plugins/session'
 import { registry } from '../../services/registry'
 import type { ParamDef, ServiceAuth, ServiceDef, WidgetDef } from '../../services/types'
+//import { SubscriptionStatus } from '../subscriptions/subscriptions.repo'
+import { subscriptionsRepo, type SubscriptionStatus } from '../subscriptions/subscriptions.repo'
 
 const paramBase = {
     name: t.String({
@@ -59,10 +61,17 @@ const widgetSchema = t.Object({
     }),
 })
 
+const subscriptionStatusSchema = t.Nullable(//why is it nullable? because the user may not be subscribed to this service
+    t.Object({
+        status: t.Union([t.Literal('active'), t.Literal('needs_reauth'), t.Literal('revoked')]),
+    }, { description: 'The current user\'s subscription to this service; null when not subscribed' })
+)
+
 const serviceSchema = t.Object({
     id: t.String({ examples: ['weather'] }),
     name: t.String({ examples: ['Weather'] }),
     auth: authSchema,
+    subscription: subscriptionStatusSchema,
     widgets: t.Array(widgetSchema),
 })
 
@@ -105,12 +114,13 @@ function toWidget(widget: WidgetDef) {
     }
 }
 
-function toService(service: ServiceDef) {
+function toService(service: ServiceDef, status: SubscriptionStatus | undefined) {
     return {
         id: service.id,
         name: service.name,
         auth: toAuth(service.auth),
         widgets: service.widgets.map(toWidget),
+        subscription: status ? { status } : null, //null when the user is not subscribed (ternary op)
     }
 }
 
