@@ -45,6 +45,7 @@ function createStubHttp() {
 }
 
 let stub: ReturnType<typeof createStubHttp>
+let repo: ReturnType<typeof createFakeRepo>
 let dashboard: ReturnType<typeof createDashboardService>
 let data: ReturnType<typeof createDataService>
 
@@ -53,7 +54,7 @@ beforeEach(() => {
     registerServices('development')
 
     stub = createStubHttp()
-    const repo = createFakeRepo()
+    repo = createFakeRepo()
     dashboard = createDashboardService(repo)
     data = createDataService({ repo, http: stub.http, cache: createTtlCache<CachedWidgetData>() })
 })
@@ -171,18 +172,83 @@ describe('request', () => {
         })
     })
 
-    test.each([
-        [0, 1],
-        [1, 1],
-        [500, 500],
-        [501, 500],
-    ])('limit %j is clamped to %j (and limit + 10 is requested)', async (limit, expected) => {
+    test.each([1, 500])('limit %j is a bound: accepted as is, and limit + 10 is requested', async (limit) => {
         stub.replyWith(() => stationRows(520))
 
         const stations = await fetchStations({ limit })
 
-        expect(queryOf(onlyCall()).limit).toBe(String(expected + 10))
-        expect(stations).toHaveLength(expected)
+        expect(queryOf(onlyCall()).limit).toBe(String(limit + 10))
+        expect(stations).toHaveLength(limit)
+    })
+})
+
+describe('limit bounds', () => {
+    test.each([0, 501, '9999'])('creating an instance with limit %j is 400 INVALID_PARAMS', async (limit) => {
+        await expect(createInstance({ limit })).rejects.toMatchObject({ status: 400, code: 'INVALID_PARAMS' })
+
+        expect(repo.rows).toHaveLength(0)
+        expect(stub.calls).toHaveLength(0)
+    })
+
+    test.each([0, 501])('updating an instance to limit %j is 400 INVALID_PARAMS and keeps the stored value', async (limit) => {
+        const instance = await createInstance({ limit: 50 })
+
+        const attempt = dashboard.update(ALICE, instance.id, { params: { limit } })
+
+        await expect(attempt).rejects.toMatchObject({ status: 400, code: 'INVALID_PARAMS' })
+        expect(repo.rows[0]!.params).toEqual({ limit: 50 })
+    })
+
+    test.each([1, 500])('updating an instance to limit %j is accepted', async (limit) => {
+        const instance = await createInstance({ limit: 50 })
+
+        const updated = await dashboard.update(ALICE, instance.id, { params: { limit } })
+
+        expect(updated.params).toEqual({ limit })
+    })
+
+    test('an instance stored with an out-of-range limit is invalid_config, with no upstream request', async () => {
+        // Straight into the repo, bypassing validation: this is a row saved
+        // before the bounds existed.
+        const stored = await repo.insert({
+            userId: ALICE,
+            serviceId: 'radio_browser',
+            widgetId: 'station_map',
+            title: null,
+            params: { limit: 9999 },
+            refreshSeconds: 600,
+            x: 0,
+            y: 0,
+            w: 4,
+            h: 3,
+            enabled: true,
+        })
+
+        expect(await data.getInstanceData(ALICE, stored.id)).toEqual({ ok: false, code: 'invalid_config' })
+        expect(stub.calls).toHaveLength(0)
+    })
+
+    test('editing such an instance back into the range makes it work again', async () => {
+        stub.replyWith(() => stationRows(20))
+        const stored = await repo.insert({
+            userId: ALICE,
+            serviceId: 'radio_browser',
+            widgetId: 'station_map',
+            title: null,
+            params: { limit: 9999 },
+            refreshSeconds: 600,
+            x: 0,
+            y: 0,
+            w: 4,
+            h: 3,
+            enabled: true,
+        })
+
+        await dashboard.update(ALICE, stored.id, { params: { limit: 5 } })
+        const result = await data.getInstanceData(ALICE, stored.id)
+
+        expect(result.ok).toBe(true)
+        expect(queryOf(onlyCall()).limit).toBe('15')
     })
 })
 

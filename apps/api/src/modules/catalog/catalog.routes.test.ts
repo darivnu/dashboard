@@ -134,6 +134,66 @@ describe('GET /catalog', () => {
         expect(body.services[1].auth).toEqual({ kind: 'oauth2' })
     })
 
+    test('an integer param with bounds carries min and max; one without has neither key', async () => {
+        registry.register({
+            id: 'radio',
+            name: 'Radio',
+            auth: { kind: 'none' },
+            widgets: [
+                {
+                    id: 'map',
+                    name: 'Map',
+                    description: 'Shows stations',
+                    params: [
+                        { name: 'limit', type: 'integer', label: 'Limit', default: 200, min: 1, max: 500 },
+                        { name: 'offset', type: 'integer', label: 'Offset', min: 0 },
+                        { name: 'days', type: 'integer', label: 'Days', default: 5 },
+                        { name: 'city', type: 'string', label: 'City' },
+                    ],
+                    refresh: { default: 3600, min: 300 },
+                    fetch: async () => ({}),
+                },
+            ],
+        })
+
+        const { status, body } = await getCatalog(loggedIn)
+        const [limit, offset, days, city] = body.services[0].widgets[0].params
+
+        expect(status).toBe(200)
+        expect(limit).toEqual({
+            name: 'limit', label: 'Limit', required: false, type: 'integer', default: 200, min: 1, max: 500,
+        })
+        // Only the declared side is published; 0 is a real bound, not "absent".
+        expect(offset).toEqual({ name: 'offset', label: 'Offset', required: false, type: 'integer', min: 0 })
+        expect(offset).not.toHaveProperty('max')
+        expect(days).not.toHaveProperty('min')
+        expect(days).not.toHaveProperty('max')
+        expect(city).not.toHaveProperty('min')
+        expect(city).not.toHaveProperty('max')
+    })
+
+    test('auth.fields carry min and max too', async () => {
+        registry.register({
+            id: 'keyed',
+            name: 'Keyed',
+            auth: {
+                kind: 'apiKey',
+                fields: [
+                    { name: 'token', type: 'string', label: 'Token', required: true },
+                    { name: 'port', type: 'integer', label: 'Port', min: 1, max: 65535 },
+                ],
+            },
+            widgets: [],
+        })
+
+        const { body } = await getCatalog(loggedIn)
+        const [token, port] = body.services[0].auth.fields
+
+        expect(port).toEqual({ name: 'port', label: 'Port', required: false, type: 'integer', min: 1, max: 65535 })
+        expect(token).not.toHaveProperty('min')
+        expect(token).not.toHaveProperty('max')
+    })
+
     test('lists services in registration order, each with its own widgets', async () => {
         registry.register({ id: 'one', name: 'One', auth: { kind: 'none' }, widgets: [] })
         registry.register({ id: 'two', name: 'Two', auth: { kind: 'none' }, widgets: [] })

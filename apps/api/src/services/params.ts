@@ -8,7 +8,15 @@ function paramValueSchema(param: ParamDef): TSchema {
     if (param.type === 'string') {
         return t.String(param.default !== undefined ? { default: param.default } : {})
     }
-    return t.Integer(param.default !== undefined ? { default: param.default } : {})
+
+    // Each option is added only when the param declares it: a key set to
+    // `undefined` would still end up in the schema object.
+    const options: { default?: number; minimum?: number; maximum?: number } = {}
+    if (param.default !== undefined) options.default = param.default
+    if (param.min !== undefined) options.minimum = param.min
+    if (param.max !== undefined) options.maximum = param.max
+
+    return t.Integer(options)
 }
 
 export function buildParamSchema(params: ParamDef[]) {

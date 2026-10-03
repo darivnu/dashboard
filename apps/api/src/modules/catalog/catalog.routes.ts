@@ -30,6 +30,14 @@ const paramSchema = t.Union([
         ...paramBase,
         type: t.Literal('integer'),
         default: t.Optional(Type.Integer({ description: 'Value stored when the param is omitted' })),
+        min: t.Optional(Type.Integer({
+            description: 'Lowest value accepted, inclusive; a lower one is rejected with 400. Absent when the param has no lower bound',
+            examples: [1],
+        })),
+        max: t.Optional(Type.Integer({
+            description: 'Highest value accepted, inclusive; a higher one is rejected with 400. Absent when the param has no upper bound',
+            examples: [500],
+        })),
     }),
 ])
 
@@ -94,7 +102,9 @@ function toParam(param: ParamDef) {
     if (param.type === 'string') {
         return { ...base, type: param.type, default: param.default }
     }
-    return { ...base, type: param.type, default: param.default }
+    // Undeclared min / max are undefined here and drop out of the JSON, the
+    // same way an undeclared default does.
+    return { ...base, type: param.type, default: param.default, min: param.min, max: param.max }
 }
 
 function toAuth(serviceAuth: ServiceAuth) {
