@@ -21,28 +21,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-    api.auth.me.get().then(({ data }) => {
-        setUser(data ?? null)
-        setLoading(false)
-    })
+        api.auth.me.get().then(({ data }) => {
+            setUser(data ?? null)
+            setLoading(false)
+        })
     }, [])
 
     const login = async (email: string, password: string) => {
-    const { data, error } = await api.auth.login.post({ email, password })
-    if (error) return false
-    setUser(data)
-    return true
+        const { data, error } = await api.auth.login.post({ email, password })
+        if (error) return false
+        setUser(data)
+        return true
     }
 
     const logout = async () => {
-    await api.auth.logout.post()
-    setUser(null)
+        await api.auth.logout.post()
+        setUser(null)
     }
 
     return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
-        {children}
-    </AuthContext.Provider>
+        <AuthContext.Provider value={{ user, loading, login, logout }}>
+            {children}
+        </AuthContext.Provider>
     )
 }
 

@@ -11,10 +11,10 @@ export type WidgetProps = {
 // Componente placeholder para widgets que aún no tienen componente propio
 function DefaultWidget({ params }: WidgetProps) {
     return (
-    <div className="text-gray-400 text-sm">
-        <p>Widget not implemented yet</p>
-        <p className="text-xs mt-1">{JSON.stringify(params)}</p>
-    </div>
+        <div className="text-gray-400 text-sm">
+            <p>Widget not implemented yet</p>
+            <p className="text-xs mt-1">{JSON.stringify(params)}</p>
+        </div>
     )
 }
 
@@ -24,6 +24,9 @@ const registry: Record<string, ComponentType<WidgetProps>> = {
     'advice_slip/random_advice': AdviceWidget,
 }
 
-export function getWidgetComponent(serviceId: string, widgetId: string): ComponentType<WidgetProps> {
+export function getWidgetComponent(
+    serviceId: string,
+    widgetId: string,
+): ComponentType<WidgetProps> {
     return registry[`${serviceId}/${widgetId}`] ?? DefaultWidget
 }
