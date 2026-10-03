@@ -18,7 +18,7 @@ export const adviceService: ServiceDef = {
             name: 'Random advice',
             description: 'A random piece of advice',
             params: [],
-            refresh: { default: 300, min: 30 },
+            refresh: { default: 60, min: 10 },
             async fetch(ctx) {
                 const body = await ctx.http.json<{ slip?: { advice?: unknown } }>('https://api.adviceslip.com/advice')
                 if (typeof body?.slip?.advice !== 'string') {
