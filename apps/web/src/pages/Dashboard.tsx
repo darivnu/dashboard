@@ -81,16 +81,10 @@ export default function Dashboard() {
             h: w.h,
         }))
     
-        const res = await fetch('/api/dashboard/layout', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify(updates)
-        })
-    
-        if (!res.ok) {
-            const err = await res.json()
-            console.error(err)
+        const { error } = await api.dashboard.layout.patch(updates)
+
+        if (error) {
+            console.error(error.value)
             reloadWidgets()
         }
     }
