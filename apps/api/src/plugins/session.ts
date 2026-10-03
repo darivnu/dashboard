@@ -4,8 +4,19 @@ import { db } from '../db/client'
 import { sessions, users } from '../db/schema'
 import { hashToken } from '../lib/tokens'
 import { AppError } from '../lib/errors'
+import { env } from '../config/env'
 
 export const SESSION_COOKIE = 'session'
+
+const isHttps = env.appUrl.startsWith('https://')
+
+// SameSite=None (needed cross-site) only works paired with Secure, so this follows APP_URL's protocol rather than NODE_ENV.
+export function sessionCookieOptions() {
+    if (isHttps) {
+        return { httpOnly: true, secure: true, sameSite: 'none', path: '/' } as const
+    }
+    return { httpOnly: true, secure: false, sameSite: 'lax', path: '/' } as const
+}
 
 export interface SessionUser {
     id: string
@@ -40,15 +51,24 @@ async function loadUser(token: unknown): Promise<SessionUser | null> {
         return user
 }
 
+/** Users found by `transform`, waiting to be picked up by `resolve` of the same request. */
+const authenticated = new WeakMap<Request, SessionUser>()
+
 export const auth = new Elysia({ name: 'auth' })
     .macro({
         auth: {
-            async resolve({ cookie }) {
+            // `transform` runs before body/params validation, so a request
+            // without a session gets 401 even when its body is invalid.
+            async transform({ cookie, request }) {
                 const user = await loadUser(cookie[SESSION_COOKIE].value)
                 if (!user) {
                     throw new AppError(401, 'UNAUTHORIZED', 'Authentication required')
                 }
-                return { user }
+                authenticated.set(request, user)
+            },
+            // Only `resolve` can add a typed `user` to the handler's context.
+            resolve({ request }) {
+                return { user: authenticated.get(request)! }
             },
         },
     })

@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm'
 import { db } from '../../db/client'
 import { sessions, users, userTokens } from '../../db/schema'
 
@@ -45,6 +45,17 @@ findValidUserToken(tokenHash: string, purpose: TokenPurpose): Promise<UserToken 
 },
 
 /**
+ * Newest token of that purpose for the user, used or expired ones included.
+ * Served by user_tokens_user_idx; the sort runs on the few rows it yields.
+ */
+findLatestUserToken(userId: string, purpose: TokenPurpose): Promise<UserToken | undefined> {
+    return db.query.userTokens.findFirst({
+    where: and(eq(userTokens.userId, userId), eq(userTokens.purpose, purpose)),
+    orderBy: desc(userTokens.createdAt),
+    })
+},
+
+/**
  * Marks the token used and the user verified in one transaction.
  * Returns false if the token was consumed by a concurrent request.
  */
@@ -82,3 +93,5 @@ async deleteSessionByTokenHash(tokenHash: string): Promise<void> {
     await db.delete(sessions).where(eq(sessions.tokenHash, tokenHash))
 },
 }
+
+export type AuthRepo = typeof authRepo

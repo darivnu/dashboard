@@ -8,6 +8,7 @@ COPY . .
 RUN bun run build
 
 FROM oven/bun:1
+ENV NODE_ENV=production
 WORKDIR /app/apps/api
 COPY --from=build /app/apps/api/dist ./dist
 COPY --from=build /app/apps/api/drizzle ./drizzle

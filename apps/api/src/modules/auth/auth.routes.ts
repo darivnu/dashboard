@@ -1,7 +1,11 @@
 import { Elysia, t } from 'elysia'
-import { isDev } from '../../config/env'
-import { auth, SESSION_COOKIE } from '../../plugins/session'
-import { authService } from './auth.service'
+import { mailer } from '../../lib/mailer'
+import { auth, sessionCookieOptions, SESSION_COOKIE } from '../../plugins/session'
+import { rateLimit } from '../../plugins/rate-limit'
+import { authRepo } from './auth.repo'
+import { createAuthService } from './auth.service'
+
+const authService = createAuthService({ repo: authRepo, mailer })
 
 const publicUser = t.Object({
     id: t.String({ format: 'uuid' }),
@@ -21,18 +25,17 @@ const verifyEmailBody = t.Object({
     token: t.String({ minLength: 1, maxLength: 128}),
 })
 
-const cookieOptions = {
-    httpOnly: true,
-    secure: !isDev,
-    sameSite: 'lax',
-    path: '/',
-} as const
+const emailBody = t.Object({
+    email: t.String({ format: 'email', maxLength: 254 }),
+})
 
 export const authRoutes = new Elysia ({ prefix: '/auth'})
     .use(auth)
+    .use(rateLimit)
     .model({
         'auth.credentials': credentialsBody,
         'auth.verifyEmailBody': verifyEmailBody,
+        'auth.emailBody': emailBody,
         'auth.user': publicUser,
         'auth.ok': ok,
     })
@@ -53,6 +56,19 @@ export const authRoutes = new Elysia ({ prefix: '/auth'})
         response: 'auth.ok',
     })
 
+    .post('/resend-verification', async ({ body }) => {
+        await authService.resendVerification(body.email)
+        return { ok: true }
+    }, {
+        body: 'auth.emailBody',
+        response: 'auth.ok',
+        detail: {
+            summary: 'Send a new verification link',
+            description: 'Always answers { ok: true }, whether or not the email belongs to an unverified account. At most one link per minute per account; earlier links stay valid until \
+            they expire or are used.',
+        },
+    })
+
     .post('/login', async ({ body, cookie, request, server }) => {
         const { token, expiresAt, user } = await authService.login({
             email: body.email,
@@ -62,7 +78,7 @@ export const authRoutes = new Elysia ({ prefix: '/auth'})
         })
 
         cookie[SESSION_COOKIE].set({
-            ...cookieOptions,
+            ...sessionCookieOptions(),
             value: token,
             expires: expiresAt,
         })
@@ -77,7 +93,7 @@ export const authRoutes = new Elysia ({ prefix: '/auth'})
         await authService.logout(cookie[SESSION_COOKIE].value)
 
         cookie[SESSION_COOKIE].set({
-            ...cookieOptions,
+            ...sessionCookieOptions(),
             value: '',
             expires: new Date(0),
             maxAge: 0,
@@ -92,3 +108,4 @@ export const authRoutes = new Elysia ({ prefix: '/auth'})
         auth: true,
         response: 'auth.user',
     })
+    
