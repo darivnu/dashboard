@@ -16,7 +16,13 @@
     "linter": {
         "enabled": true,
         "rules": {
-            "recommended": true
+            "preset": "recommended",
+            "suspicious": {
+                "noConsole": {
+                    "level": "error",
+                    "options": { "allow": ["error", "warn"] }
+                }
+            }
         }
     },
     "assist": {

@@ -8,7 +8,7 @@ export default function Register() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
 
-        const { data, error } = await api.auth.register.post({
+        const { error } = await api.auth.register.post({
             email,
             password,
         })
@@ -19,7 +19,6 @@ export default function Register() {
             return
         }
 
-        console.log('User created:', data)
         alert('Account created! Check your email to verify.')
     }
 

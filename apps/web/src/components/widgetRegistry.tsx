@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
-import EchoWidget from './widgets/EchoWidget'
 import AdviceWidget from './widgets/AdviceWidget'
+import EchoWidget from './widgets/EchoWidget'
 
 export type WidgetProps = {
     instanceId: string

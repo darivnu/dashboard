@@ -5,7 +5,7 @@
  ** AdviceWidget
  */
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '../../api'
 import type { WidgetProps } from '../widgetRegistry'
 
@@ -13,6 +13,7 @@ export default function AdviceWidget({
     instanceId,
     refreshSeconds,
 }: WidgetProps) {
+    // biome-ignore lint/suspicious/noExplicitAny: legacy widget, to be migrated to the widget base
     const [data, setData] = useState<any>(null)
     const [error, setError] = useState<string | null>(null)
 
@@ -34,6 +35,7 @@ export default function AdviceWidget({
             })
     }
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: legacy widget, to be migrated to the widget base
     useEffect(() => {
         fetchData()
         const interval = setInterval(fetchData, refreshSeconds * 1000)

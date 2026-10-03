@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
-import { useAuth } from '../auth'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
+import { api } from '../api'
+import { useAuth } from '../auth'
 import AddWidgetModal from '../components/AddWidgetModal'
 import WidgetGrid from '../components/WidgetGrid'
-import { api } from '../api'
 
 type WidgetInstance = {
     id: string

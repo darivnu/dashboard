@@ -1,10 +1,10 @@
-import { BrowserRouter, Routes, Route, Link } from 'react-router'
+import { BrowserRouter, Link, Route, Routes } from 'react-router'
 import { AuthProvider } from './auth'
+import ProtectedRoute from './components/ProtectedRoute'
+import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import VerifyEmail from './pages/VerifyEmail'
-import Dashboard from './pages/Dashboard'
-import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
     return (
