@@ -59,7 +59,7 @@ export const app = new Elysia()
     .use(aboutRoutes)
 
 if (existsSync('../web/dist')) {
-    app.use(staticPlugin({ assets: '../web/dist', prefix: '/', indexHTML: true }))
+    app.use(staticPlugin({ assets: '../web/dist', prefix: '/', indexHTML: true, alwaysStatic: true }))
     app.get('/*', ({ path }) => {
         if (path.startsWith('/api')) throw new NotFoundError()
         return Bun.file('../web/dist/index.html')

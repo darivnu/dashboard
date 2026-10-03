@@ -7,9 +7,10 @@
 import type { ServiceDef } from '../types'
 import { mockKeyService, mockService } from './mock'
 import { radioBrowserService } from './radio-browser'
+import { adviceService } from './advice'
 
 /** Registered in every environment. Real, production-ready services go here. */
-export const services: ServiceDef[] = [radioBrowserService]
+export const services: ServiceDef[] = [radioBrowserService, adviceService]
 
 /**
  * Registered only when NODE_ENV !== 'production' (register.ts decides).

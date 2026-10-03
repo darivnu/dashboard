@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react'
 import EchoWidget from './widgets/EchoWidget'
+import AdviceWidget from './widgets/AdviceWidget'
 
 export type WidgetProps = {
     instanceId: string
@@ -20,6 +21,7 @@ function DefaultWidget({ params }: WidgetProps) {
 // El mapa: cada clave es "serviceId/widgetId", el valor es el componente React
 const registry: Record<string, ComponentType<WidgetProps>> = {
     'mock/echo': EchoWidget,
+    'advice_slip/random_advice': AdviceWidget,
 }
 
 export function getWidgetComponent(serviceId: string, widgetId: string): ComponentType<WidgetProps> {

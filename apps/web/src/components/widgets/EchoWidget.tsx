@@ -8,14 +8,16 @@ export default function EchoWidget({ instanceId, refreshSeconds }: WidgetProps) 
 
     const fetchData = () => {
     api.dashboard.instances({ id: instanceId }).data.get().then(({ data: res, error: err }) => {
-        if (err) {
-        setError('Failed to fetch')
-        return
+        if (err || !res) {
+            setError('Failed to fetch');
+            return
         }
-        if (res && 'data' in res) {
+        if (!res.ok) {
+            setError(res.code);
+            return
+        }
         setData(res.data)
         setError(null)
-        }
     })
     }
 
