@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { __resetRegistryForTests, registry } from './registry'
-import type { ServiceDef, WidgetDef } from './types'
+import type { ParamDef, ServiceDef, WidgetDef } from './types'
 
 beforeEach(() => {
     __resetRegistryForTests()
@@ -95,5 +95,108 @@ describe('registry', () => {
         })
 
         expect(() => registry.register(def)).toThrow(/duplicate param "token"/)
+    })
+})
+
+describe('registry integer param bounds', () => {
+    function withParam(param: ParamDef): ServiceDef {
+        return service({ widgets: [widget({ params: [param] })] })
+    }
+
+    test('accepts a valid range with a default inside it', () => {
+        const def = withParam({
+            name: 'limit', type: 'integer', label: 'Limit', default: 200, min: 1, max: 500,
+        })
+
+        expect(() => registry.register(def)).not.toThrow()
+    })
+
+    test('accepts a default sitting exactly on a bound', () => {
+        const def = withParam({
+            name: 'limit', type: 'integer', label: 'Limit', default: 1, min: 1, max: 1,
+        })
+
+        expect(() => registry.register(def)).not.toThrow()
+    })
+
+    test('accepts a param declaring only one bound', () => {
+        const def = service({
+            widgets: [
+                widget({
+                    params: [
+                        { name: 'low', type: 'integer', label: 'Low', default: 3, min: 1 },
+                        { name: 'high', type: 'integer', label: 'High', default: 3, max: 10 },
+                    ],
+                }),
+            ],
+        })
+
+        expect(() => registry.register(def)).not.toThrow()
+    })
+
+    test('rejects min greater than max', () => {
+        const def = withParam({ name: 'limit', type: 'integer', label: 'Limit', min: 5, max: 1 })
+
+        expect(() => registry.register(def)).toThrow(
+            'service/widget: param "limit" min (5) must be <= max (1)',
+        )
+    })
+
+    test('rejects a default below min', () => {
+        const def = withParam({
+            name: 'limit', type: 'integer', label: 'Limit', default: 0, min: 1, max: 500,
+        })
+
+        expect(() => registry.register(def)).toThrow(
+            'service/widget: param "limit" default (0) must be >= min (1)',
+        )
+    })
+
+    test('rejects a default above max', () => {
+        const def = withParam({
+            name: 'limit', type: 'integer', label: 'Limit', default: 501, min: 1, max: 500,
+        })
+
+        expect(() => registry.register(def)).toThrow(
+            'service/widget: param "limit" default (501) must be <= max (500)',
+        )
+    })
+
+    test('rejects a default outside a range that declares only one bound', () => {
+        const below = withParam({ name: 'limit', type: 'integer', label: 'Limit', default: 0, min: 1 })
+        const above = withParam({ name: 'limit', type: 'integer', label: 'Limit', default: 11, max: 10 })
+
+        expect(() => registry.register(below)).toThrow(/default \(0\) must be >= min \(1\)/)
+        expect(() => registry.register(above)).toThrow(/default \(11\) must be <= max \(10\)/)
+    })
+
+    test.each([
+        ['min', { min: 1.5 }, /min must be an integer, got 1\.5/],
+        ['max', { max: 9.5 }, /max must be an integer, got 9\.5/],
+        ['min', { min: Number.NaN }, /min must be an integer, got NaN/],
+    ] as const)('rejects a non-integer %s', (_side, bounds, message) => {
+        const def = withParam({ name: 'limit', type: 'integer', label: 'Limit', ...bounds })
+
+        expect(() => registry.register(def)).toThrow(message)
+    })
+
+    test('does not register a service whose bounds are invalid', () => {
+        const def = withParam({ name: 'limit', type: 'integer', label: 'Limit', min: 5, max: 1 })
+
+        expect(() => registry.register(def)).toThrow()
+        expect(registry.getService('service')).toBeUndefined()
+    })
+
+    test('applies the same check to apiKey auth fields', () => {
+        const def = service({
+            auth: {
+                kind: 'apiKey',
+                fields: [{ name: 'port', type: 'integer', label: 'Port', min: 10, max: 1 }],
+            },
+        })
+
+        expect(() => registry.register(def)).toThrow(
+            'service auth: param "port" min (10) must be <= max (1)',
+        )
     })
 })

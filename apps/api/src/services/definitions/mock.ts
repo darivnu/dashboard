@@ -105,7 +105,8 @@ export const mockService: ServiceDef = {
             /**
              * Drives three things:
              *  1. /about.json  → `{ name, type }` per param
-             *  2. /api/catalog → `{ name, label, type, required, default }`
+             *  2. /api/catalog → `{ name, label, type, required, default }`,
+             *     plus `min` / `max` for an integer param that declares them
              *  3. validation   → buildParamSchema() turns this list into a
              *     TypeBox schema. On instance create/update, bad input is a
              *     400 INVALID_PARAMS; unknown keys are dropped, defaults are
@@ -122,12 +123,29 @@ export const mockService: ServiceDef = {
                 },
                 {
                     name: 'count',
-                    label: 'How many times to repeat the message (1-10)',
+                    label: 'How many times to repeat the message',
                     type: 'integer',
                     // A default makes the param optional in practice: it is
                     // filled in before fetch() runs, so `params.count` is
                     // always a number here.
                     default: 1,
+                    /**
+                     * Inclusive range, integer params only. Each bound is
+                     * optional and enforced on its own side. Declared once
+                     * here, they drive three things:
+                     *  1. /api/catalog → published as `min` / `max`, so a form
+                     *     can enforce the range without parsing the label
+                     *  2. validation   → a value outside the range is a
+                     *     400 INVALID_PARAMS on create/update, and
+                     *     `invalid_config` from the data endpoint for an
+                     *     instance already stored with such a value
+                     *  3. the registry → rejects at boot a bound that is not
+                     *     an integer, min > max, and a default outside the range
+                     * So do not repeat the range in the label and do not clamp
+                     * in fetch().
+                     */
+                    min: 1,
+                    max: 10,
                 },
                 failParam,
             ],
@@ -155,10 +173,11 @@ export const mockService: ServiceDef = {
             async fetch(_ctx, params) {
                 failIfRequested(params)
 
-                // After validation `message` is a string and `count` a number,
-                // but WidgetParams is typed `string | number`, so narrow here.
+                // After validation `message` is a string and `count` a number
+                // inside its declared min/max, but WidgetParams is typed
+                // `string | number`, so narrow here. No clamp needed.
                 const message = String(params.message)
-                const count = Math.min(Math.max(Number(params.count), 1), 10)
+                const count = Number(params.count)
 
                 return {
                     message,

@@ -61,10 +61,6 @@ async function get(ctx: FetchCtx, path: string, query: Query): Promise<unknown> 
     })
 }
 
-function clamp(value: number, min: number, max: number): number {
-    return Math.min(Math.max(value, min), max)
-}
-
 /** Trimmed string, or null when the value is missing, not a string or blank. */
 function text(value: unknown): string | null {
     if (typeof value !== 'string') return null
@@ -138,9 +134,11 @@ export const radioBrowserService: ServiceDef = {
             params: [
                 {
                     name: 'limit',
-                    label: `How many stations to show on the map (${MIN_STATIONS}-${MAX_STATIONS})`,
+                    label: 'How many stations to show on the map',
                     type: 'integer',
                     default: DEFAULT_STATIONS,
+                    min: MIN_STATIONS,
+                    max: MAX_STATIONS,
                 },
             ],
 
@@ -152,7 +150,9 @@ export const radioBrowserService: ServiceDef = {
             refresh: { default: 600, min: 120 },
 
             async fetch(ctx, params) {
-                const limit = clamp(Number(params.limit), MIN_STATIONS, MAX_STATIONS)
+                // Validated against the param's min/max before fetch() runs,
+                // so no clamp is needed here.
+                const limit = Number(params.limit)
 
                 const body = await get(ctx, '/json/stations/search', {
                     has_geo_info: true,

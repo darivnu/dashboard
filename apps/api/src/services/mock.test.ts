@@ -87,6 +87,23 @@ describe('mock / echo through the data endpoint', () => {
 
         await expect(attempt).rejects.toMatchObject({ status: 400, code: 'INVALID_PARAMS' })
     })
+
+    test.each([0, 11])('count: %i is outside 1-10 and rejected at creation', async (count) => {
+        const attempt = dashboard.create(ALICE, {
+            serviceId: 'mock',
+            widgetId: 'echo',
+            params: { message: 'x', count },
+        })
+
+        await expect(attempt).rejects.toMatchObject({ status: 400, code: 'INVALID_PARAMS' })
+    })
+
+    test.each([1, 10])('count: %i is a bound and is repeated exactly, not clamped', async (count) => {
+        const result = await createAndFetch('mock', 'echo', { message: 'x', count })
+
+        expect(result).toMatchObject({ ok: true, data: { count } })
+        expect(result.ok && (result.data as { repeated: string[] }).repeated).toHaveLength(count)
+    })
 })
 
 describe('mock_key / secret_echo', () => {

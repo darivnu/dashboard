@@ -4,9 +4,25 @@ interface ParamDefBase {
     required?: boolean
 }
 
+interface IntegerParamDef extends ParamDefBase {
+    type: 'integer'
+    default?: number
+    /**
+     * Inclusive bounds. Each one is optional and enforced on its own side:
+     * a param may declare only `min`, only `max`, both or neither.
+     *
+     * Declared once here, they drive three things: `validateParams` rejects a
+     * value outside the range, the registry checks at boot that they are
+     * integers, that `min <= max` and that `default` sits inside the range,
+     * and the catalog publishes them so a form can enforce the same range.
+     */
+    min?: number
+    max?: number
+}
+
 export type ParamDef =
     | (ParamDefBase & { type: 'string'; default?: string })
-    | (ParamDefBase & { type: 'integer'; default?: number })
+    | IntegerParamDef
 
 export type ParamType = ParamDef['type']
 
