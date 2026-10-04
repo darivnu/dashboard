@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { type RenderOptions, render } from '@testing-library/react'
+import { type RenderOptions, render, renderHook } from '@testing-library/react'
 import type { ReactElement, ReactNode } from 'react'
 
 // A fresh client per test: no retries, so a failing request fails at once,
@@ -13,17 +13,27 @@ export function createTestQueryClient() {
     })
 }
 
-export function renderWithQuery(
-    ui: ReactElement,
-    options?: Omit<RenderOptions, 'wrapper'> & { client?: QueryClient },
-) {
-    const { client = createTestQueryClient(), ...rest } = options ?? {}
-    function Wrapper({ children }: { children: ReactNode }) {
+function wrapperFor(client: QueryClient) {
+    return function Wrapper({ children }: { children: ReactNode }) {
         return (
             <QueryClientProvider client={client}>
                 {children}
             </QueryClientProvider>
         )
     }
-    return { client, ...render(ui, { wrapper: Wrapper, ...rest }) }
+}
+
+export function renderWithQuery(
+    ui: ReactElement,
+    options?: Omit<RenderOptions, 'wrapper'> & { client?: QueryClient },
+) {
+    const { client = createTestQueryClient(), ...rest } = options ?? {}
+    return { client, ...render(ui, { wrapper: wrapperFor(client), ...rest }) }
+}
+
+export function renderHookWithQuery<Result>(
+    hook: () => Result,
+    client: QueryClient = createTestQueryClient(),
+) {
+    return { client, ...renderHook(hook, { wrapper: wrapperFor(client) }) }
 }
