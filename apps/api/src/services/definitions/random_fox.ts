@@ -17,7 +17,7 @@ export const randomFoxService: ServiceDef = {
     widgets: [
         {
             id: 'random_fox',
-            name: 'Random Fox',
+            name: 'Random Fox Picture',
             description: 'A random fox image',
             params: [],
             refresh: { default: 60, min: 10 },
