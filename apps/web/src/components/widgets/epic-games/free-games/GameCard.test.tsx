@@ -116,6 +116,39 @@ test('shows the cover as a decorative image', () => {
     expect(screen.queryByText('No cover')).not.toBeInTheDocument()
 })
 
+test('the cover also opens the store page in a new tab', () => {
+    const { container } = render(
+        <GameCard game={game} upcoming={false} now={NOW} />,
+    )
+
+    const link = cover(container)?.closest('a')
+    expect(link).toHaveAttribute('href', game.url)
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noreferrer')
+})
+
+test('the cover link is for the mouse only: keyboards and screen readers get one link, the title', () => {
+    const { container } = render(
+        <GameCard game={game} upcoming={false} now={NOW} />,
+    )
+
+    const link = cover(container)?.closest('a')
+    expect(link).toHaveAttribute('aria-hidden', 'true')
+    expect(link).toHaveAttribute('tabindex', '-1')
+    expect(screen.getAllByRole('link')).toHaveLength(1)
+})
+
+test('the placeholder of a missing cover opens the store page too', () => {
+    render(
+        <GameCard game={{ ...game, image: null }} upcoming={false} now={NOW} />,
+    )
+
+    expect(screen.getByText('No cover').closest('a')).toHaveAttribute(
+        'href',
+        game.url,
+    )
+})
+
 test('a game without a cover shows a placeholder', () => {
     const { container } = render(
         <GameCard game={{ ...game, image: null }} upcoming={false} now={NOW} />,

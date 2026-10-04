@@ -19,19 +19,31 @@ export default function GameCard({ game, upcoming, now }: Props) {
 
     return (
         <article className="flex flex-col overflow-hidden rounded-lg bg-gray-700">
-            {showImage ? (
-                <img
-                    src={game.image ?? undefined}
-                    alt=""
-                    loading="lazy"
-                    className="aspect-video w-full bg-gray-600 object-cover"
-                    onError={() => setBrokenImage(game.image)}
-                />
-            ) : (
-                <div className="flex aspect-video w-full items-center justify-center bg-gray-600 text-gray-400 text-xs">
-                    No cover
-                </div>
-            )}
+            {/* The cover opens the store page too, for the mouse only: the
+                title below is the link keyboards and screen readers use, so
+                the same destination is not announced twice. */}
+            {/* biome-ignore lint/a11y/useAnchorContent: hidden on purpose, the title is the accessible link */}
+            <a
+                href={game.url}
+                target="_blank"
+                rel="noreferrer"
+                aria-hidden="true"
+                tabIndex={-1}
+            >
+                {showImage ? (
+                    <img
+                        src={game.image ?? undefined}
+                        alt=""
+                        loading="lazy"
+                        className="aspect-video w-full bg-gray-600 object-cover"
+                        onError={() => setBrokenImage(game.image)}
+                    />
+                ) : (
+                    <div className="flex aspect-video w-full items-center justify-center bg-gray-600 text-gray-400 text-xs">
+                        No cover
+                    </div>
+                )}
+            </a>
 
             <div className="flex flex-col gap-1 p-2 text-sm">
                 <a
