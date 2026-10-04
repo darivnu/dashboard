@@ -1,6 +1,8 @@
 import type { ComponentType } from 'react'
 import type { Instance, InstanceParams } from './dashboard/types'
 import AdviceWidget from './widgets/AdviceWidget'
+import FreeGames from './widgets/epic-games/free-games/FreeGames'
+import { parseFreeGames } from './widgets/epic-games/free-games/parse'
 import EchoWidget from './widgets/mock/echo/EchoWidget'
 import { parseEcho } from './widgets/mock/echo/parse'
 import ApodWidget from './widgets/nasa/apod/ApodWidget'
@@ -105,6 +107,13 @@ const neo = defineWidget({
     minSize: { w: 3, h: 4 },
 })
 
+const freeGames = defineWidget({
+    component: FreeGames,
+    parse: parseFreeGames,
+    defaultSize: { w: 4, h: 6 },
+    minSize: { w: 3, h: 4 },
+})
+
 // El mapa: cada clave es "serviceId/widgetId"
 const entries: Record<string, WidgetEntry> = {
     'radio_browser/station_map': stationMap,
@@ -118,6 +127,7 @@ const entries: Record<string, WidgetEntry> = {
     'random_fox/random_fox': fox,
     'nasa/apod': apod,
     'nasa/neows': neo,
+    'epic_games/free_games': freeGames,
 }
 
 export function getWidgetEntry(
