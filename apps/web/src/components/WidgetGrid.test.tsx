@@ -8,7 +8,12 @@ import WidgetGrid from './WidgetGrid'
 vi.mock('../api', async () => (await import('../test/apiMock')).apiModule)
 
 function setup(instances: ReturnType<typeof makeInstance>[]) {
-    const handlers = { onEdit: vi.fn(), onDelete: vi.fn(), onMove: vi.fn() }
+    const handlers = {
+        onEdit: vi.fn(),
+        onDelete: vi.fn(),
+        onMove: vi.fn(),
+        onSetApiKey: vi.fn(),
+    }
     renderWithQuery(<WidgetGrid instances={instances} {...handlers} />)
     return handlers
 }

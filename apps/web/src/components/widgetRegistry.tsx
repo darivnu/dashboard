@@ -3,8 +3,12 @@ import type { Instance, InstanceParams } from './dashboard/types'
 import AdviceWidget from './widgets/AdviceWidget'
 import EchoWidget from './widgets/mock/echo/EchoWidget'
 import { parseEcho } from './widgets/mock/echo/parse'
+import ApodWidget from './widgets/nasa/apod/ApodWidget'
+import { parseApod } from './widgets/nasa/apod/parse'
 import { parseStationMap } from './widgets/radio-browser/station-map/parse'
 import StationMap from './widgets/radio-browser/station-map/StationMap'
+import FoxWidget from './widgets/random_fox/random_fox/FoxWidget'
+import { parseFox } from './widgets/random_fox/random_fox/parse'
 
 export type Size = { w: number; h: number }
 
@@ -78,6 +82,20 @@ const stationMap = defineWidget({
     minSize: { w: 4, h: 4 },
 })
 
+const fox = defineWidget({
+    component: FoxWidget,
+    parse: parseFox,
+    defaultSize: { w: 4, h: 5 },
+    minSize: { w: 2, h: 2 },
+})
+
+const apod = defineWidget({
+    component: ApodWidget,
+    parse: parseApod,
+    defaultSize: { w: 4, h: 6 },
+    minSize: { w: 3, h: 4 },
+})
+
 // El mapa: cada clave es "serviceId/widgetId"
 const entries: Record<string, WidgetEntry> = {
     'radio_browser/station_map': stationMap,
@@ -85,9 +103,11 @@ const entries: Record<string, WidgetEntry> = {
     'mock_key/secret_echo': echo,
     'advice_slip/random_advice': {
         legacy: AdviceWidget,
-        defaultSize: { w: 4, h: 3 },
-        minSize: { w: 2, h: 2 },
+        defaultSize: { w: 4, h: 2 },
+        minSize: { w: 2, h: 1 },
     },
+    'random_fox/random_fox': fox,
+    'nasa/apod': apod,
 }
 
 export function getWidgetEntry(

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useAuth } from '../auth'
 import AddWidgetDialog from '../components/dashboard/AddWidgetDialog'
+import ApiKeyDialog from '../components/dashboard/ApiKeyDialog'
 import ConfirmDialog from '../components/dashboard/ConfirmDialog'
 import EditWidgetDialog from '../components/dashboard/EditWidgetDialog'
 import {
@@ -35,9 +36,11 @@ export default function Dashboard() {
     // version from the list.
     const [editingId, setEditingId] = useState<string | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
+    const [apiKeyId, setApiKeyId] = useState<string | null>(null)
 
     const list = instances.data ?? []
     const editing = list.find((instance) => instance.id === editingId) ?? null
+    const apiKeyFor = list.find((instance) => instance.id === apiKeyId) ?? null
     const deleting = list.find((instance) => instance.id === deletingId) ?? null
 
     const deletingName = deleting
@@ -116,6 +119,7 @@ export default function Dashboard() {
                         onEdit={(instance) => setEditingId(instance.id)}
                         onDelete={(instance) => setDeletingId(instance.id)}
                         onMove={handleMove}
+                        onSetApiKey={(instance) => setApiKeyId(instance.id)}
                     />
                 )}
             </main>
@@ -129,6 +133,10 @@ export default function Dashboard() {
                 instance={editing}
                 onClose={() => setEditingId(null)}
                 instances={list}
+            />
+            <ApiKeyDialog
+                instance={apiKeyFor}
+                onClose={() => setApiKeyId(null)}
             />
             <ConfirmDialog
                 open={deleting !== null}

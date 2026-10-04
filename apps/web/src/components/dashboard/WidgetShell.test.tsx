@@ -44,15 +44,49 @@ function failure(code: string) {
 }
 
 function setup(instance = makeInstance({ title: 'My echo' })) {
-    const handlers = { onEdit: vi.fn(), onDelete: vi.fn(), onMove: vi.fn() }
+    const handlers = {
+        onEdit: vi.fn(),
+        onDelete: vi.fn(),
+        onMove: vi.fn(),
+        onSetApiKey: vi.fn(),
+    }
     const view = renderWithQuery(
         <WidgetShell instance={instance} {...handlers} />,
     )
     return { instance, user: userEvent.setup(), ...handlers, ...view }
 }
 
+// The header reads each service's auth kind from the catalog.
+const services = [
+    {
+        id: 'mock',
+        name: 'Mock',
+        auth: { kind: 'none' },
+        subscription: null,
+        widgets: [],
+    },
+    {
+        id: 'nasa',
+        name: 'NASA',
+        auth: {
+            kind: 'apiKey',
+            fields: [
+                {
+                    name: 'apiKey',
+                    label: 'API key',
+                    type: 'string',
+                    required: true,
+                },
+            ],
+        },
+        subscription: null,
+        widgets: [],
+    },
+]
+
 beforeEach(() => {
     resetApiMock()
+    apiMock.catalog.mockResolvedValue(ok({ services }))
 })
 
 describe('header', () => {
@@ -88,6 +122,27 @@ describe('header', () => {
 
         await user.click(screen.getByRole('button', { name: 'Delete' }))
         expect(onDelete).toHaveBeenCalledTimes(1)
+    })
+
+    test('API key shows for a service that uses one and calls its handler', async () => {
+        const { user, onSetApiKey } = setup(
+            makeInstance({
+                title: 'Space',
+                serviceId: 'nasa',
+                widgetId: 'apod',
+            }),
+        )
+
+        await user.click(await screen.findByRole('button', { name: 'API key' }))
+        expect(onSetApiKey).toHaveBeenCalledTimes(1)
+    })
+
+    test('API key is hidden for a service without one', async () => {
+        setup()
+        await waitFor(() => expect(apiMock.catalog).toHaveBeenCalled())
+        expect(
+            screen.queryByRole('button', { name: 'API key' }),
+        ).not.toBeInTheDocument()
     })
 })
 
@@ -188,13 +243,19 @@ describe('a first load that fails', () => {
         expect(onEdit).toHaveBeenCalledTimes(1)
     })
 
-    test('needs_reauth: message without an action', async () => {
+    test('needs_reauth: message and Set API key instead of Try again', async () => {
         apiMock.instanceData.mockResolvedValue(failure('needs_reauth'))
-        setup()
+        const { user, onSetApiKey } = setup()
 
         const alert = await screen.findByRole('alert')
         expect(alert).toHaveTextContent('This service needs to be reconnected.')
-        expect(within(alert).queryByRole('button')).not.toBeInTheDocument()
+        expect(
+            within(alert).queryByRole('button', { name: 'Try again' }),
+        ).not.toBeInTheDocument()
+        await user.click(
+            within(alert).getByRole('button', { name: 'Set API key' }),
+        )
+        expect(onSetApiKey).toHaveBeenCalledTimes(1)
     })
 
     test.each([
@@ -318,7 +379,12 @@ describe('a widget that throws while rendering', () => {
                     : success({ message: 'still here' }),
             )
         })
-        const handlers = { onEdit: vi.fn(), onDelete: vi.fn(), onMove: vi.fn() }
+        const handlers = {
+            onEdit: vi.fn(),
+            onDelete: vi.fn(),
+            onMove: vi.fn(),
+            onSetApiKey: vi.fn(),
+        }
         renderWithQuery(
             <>
                 <WidgetShell
