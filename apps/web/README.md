@@ -95,10 +95,9 @@ server: {
 
 ### Production
 
-Two setups are supported:
+Production runs on Vercel, with the frontend and the API deployed separately (`deploy.sh` at the repo root triggers a build of `main`). Set `VITE_API_URL` to the API's URL in the frontend's build environment; it is baked in at build time. The session cookie is sent cross-origin thanks to `credentials: 'include'`, and the API must list the frontend's origin in `WEB_URL` / `CORS_ORIGINS`.
 
-- **Docker** (`docker compose up --build`): the image builds `apps/web` and the API serves `../web/dist` itself on port 8080. Same origin, so `VITE_API_URL` stays unset.
-- **Separate deployments**: set `VITE_API_URL` to the API's URL when building. It is baked in at build time. The session cookie is sent cross-origin thanks to `credentials: 'include'`, and the API must list the frontend's origin in `WEB_URL` / `CORS_ORIGINS`.
+Docker is not used in production. `docker compose up --build` is a way to run the whole stack on one machine: the image builds `apps/web` and the API serves `../web/dist` itself on port 8080. Same origin, so `VITE_API_URL` stays unset.
 
 ## Authentication flow
 
@@ -215,4 +214,4 @@ cd apps/web
 bun run build      # type-checks with tsc, then outputs to dist/
 ```
 
-When `../web/dist` exists, the backend serves the frontend on port 8080.
+When `../web/dist` exists next to a locally running API, the API also serves the frontend on port 8080.

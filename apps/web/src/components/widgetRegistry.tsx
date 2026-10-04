@@ -3,6 +3,8 @@ import type { Instance, InstanceParams } from './dashboard/types'
 import AdviceWidget from './widgets/AdviceWidget'
 import EchoWidget from './widgets/mock/echo/EchoWidget'
 import { parseEcho } from './widgets/mock/echo/parse'
+import { parseStationMap } from './widgets/radio-browser/station-map/parse'
+import StationMap from './widgets/radio-browser/station-map/StationMap'
 
 export type Size = { w: number; h: number }
 
@@ -69,8 +71,16 @@ const echo = defineWidget({
     minSize: { w: 2, h: 2 },
 })
 
+const stationMap = defineWidget({
+    component: StationMap,
+    parse: parseStationMap,
+    defaultSize: { w: 6, h: 5 },
+    minSize: { w: 4, h: 4 },
+})
+
 // El mapa: cada clave es "serviceId/widgetId"
 const entries: Record<string, WidgetEntry> = {
+    'radio_browser/station_map': stationMap,
     'mock/echo': echo,
     'mock_key/secret_echo': echo,
     'advice_slip/random_advice': {
