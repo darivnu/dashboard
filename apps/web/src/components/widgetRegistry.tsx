@@ -1,10 +1,12 @@
 import type { ComponentType } from 'react'
 import type { Instance, InstanceParams } from './dashboard/types'
 import AdviceWidget from './widgets/AdviceWidget'
-import FoxWidget from './widgets/FoxWidget'
-import NasaApodWidget from './widgets/NasaApod'
 import EchoWidget from './widgets/mock/echo/EchoWidget'
 import { parseEcho } from './widgets/mock/echo/parse'
+import ApodWidget from './widgets/nasa/apod/ApodWidget'
+import { parseApod } from './widgets/nasa/apod/parse'
+import FoxWidget from './widgets/random_fox/random_fox/FoxWidget'
+import { parseFox } from './widgets/random_fox/random_fox/parse'
 
 export type Size = { w: number; h: number }
 
@@ -58,13 +60,6 @@ function DefaultWidget({ params }: WidgetProps) {
     )
 }
 
-// El mapa: cada clave es "serviceId/widgetId", el valor es el componente React
-const registry: Record<string, ComponentType<WidgetProps>> = {
-    //'mock/echo': EchoWidget,
-    'advice_slip/random_advice': AdviceWidget,
-    'random_fox/random_fox': FoxWidget,
-    'nasa/apod': NasaApodWidget,
-}
 const fallback: WidgetEntry = {
     legacy: DefaultWidget,
     defaultSize: { w: 4, h: 3 },
@@ -78,6 +73,20 @@ const echo = defineWidget({
     minSize: { w: 2, h: 2 },
 })
 
+const fox = defineWidget({
+    component: FoxWidget,
+    parse: parseFox,
+    defaultSize: { w: 4, h: 4 },
+    minSize: { w: 2, h: 2 },
+})
+
+const apod = defineWidget({
+    component: ApodWidget,
+    parse: parseApod,
+    defaultSize: { w: 4, h: 6 },
+    minSize: { w: 3, h: 4 },
+})
+
 // El mapa: cada clave es "serviceId/widgetId"
 const entries: Record<string, WidgetEntry> = {
     'mock/echo': echo,
@@ -87,6 +96,8 @@ const entries: Record<string, WidgetEntry> = {
         defaultSize: { w: 4, h: 3 },
         minSize: { w: 2, h: 2 },
     },
+    'random_fox/random_fox': fox,
+    'nasa/apod': apod,
 }
 
 export function getWidgetEntry(

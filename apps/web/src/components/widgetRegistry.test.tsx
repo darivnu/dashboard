@@ -94,6 +94,8 @@ describe('getWidgetEntry', () => {
             ['advice_slip', 'random_advice'],
             ['mock', 'echo'],
             ['mock_key', 'secret_echo'],
+            ['random_fox', 'random_fox'],
+            ['nasa', 'apod'],
             ['nope', 'nothing'],
         ]) {
             const { defaultSize, minSize } = getWidgetEntry(service, widget)
