@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import EchoWidget from './widgets/EchoWidget'
 import AdviceWidget from './widgets/AdviceWidget'
+import FoxWidget from './widgets/FoxWidget'
 
 export type WidgetProps = {
     instanceId: string
@@ -22,6 +23,7 @@ function DefaultWidget({ params }: WidgetProps) {
 const registry: Record<string, ComponentType<WidgetProps>> = {
     'mock/echo': EchoWidget,
     'advice_slip/random_advice': AdviceWidget,
+    'random_fox/random_fox': FoxWidget,
 }
 
 export function getWidgetComponent(serviceId: string, widgetId: string): ComponentType<WidgetProps> {
