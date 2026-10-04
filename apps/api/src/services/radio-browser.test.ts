@@ -189,8 +189,8 @@ describe('request', () => {
         })
     })
 
-    test.each([1, 500])('limit %j is a bound: accepted as is, and limit + 10 is requested', async (limit) => {
-        stub.replyWith(() => stationRows(520))
+    test.each([1, 999])('limit %j is a bound: accepted as is, and limit + 10 is requested', async (limit) => {
+        stub.replyWith(() => stationRows(1019))
 
         const stations = await fetchStations({ limit })
 
@@ -200,14 +200,14 @@ describe('request', () => {
 })
 
 describe('limit bounds', () => {
-    test.each([0, 501, '9999'])('creating an instance with limit %j is 400 INVALID_PARAMS', async (limit) => {
+    test.each([0, 1000, '9999'])('creating an instance with limit %j is 400 INVALID_PARAMS', async (limit) => {
         await expect(createInstance({ limit })).rejects.toMatchObject({ status: 400, code: 'INVALID_PARAMS' })
 
         expect(repo.rows).toHaveLength(0)
         expect(stub.calls).toHaveLength(0)
     })
 
-    test.each([0, 501])('updating an instance to limit %j is 400 INVALID_PARAMS and keeps the stored value', async (limit) => {
+    test.each([0, 1000])('updating an instance to limit %j is 400 INVALID_PARAMS and keeps the stored value', async (limit) => {
         const instance = await createInstance({ limit: 50 })
 
         const attempt = dashboard.update(ALICE, instance.id, { params: { limit } })
@@ -216,7 +216,7 @@ describe('limit bounds', () => {
         expect(repo.rows[0]!.params).toEqual({ limit: 50 })
     })
 
-    test.each([1, 500])('updating an instance to limit %j is accepted', async (limit) => {
+    test.each([1, 999])('updating an instance to limit %j is accepted', async (limit) => {
         const instance = await createInstance({ limit: 50 })
 
         const updated = await dashboard.update(ALICE, instance.id, { params: { limit } })
