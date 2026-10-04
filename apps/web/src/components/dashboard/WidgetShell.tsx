@@ -1,0 +1,250 @@
+import { type ComponentType, type ReactNode, useMemo } from 'react'
+import Alert from '../ui/Alert'
+import Button from '../ui/Button'
+import Spinner from '../ui/Spinner'
+import {
+    getWidgetEntry,
+    type WidgetDefinition,
+    type WidgetProps,
+} from '../widgetRegistry'
+import { useCatalog } from './queries'
+import type { Instance, WidgetErrorCode } from './types'
+import { useWidgetData, type WidgetError } from './useWidgetData'
+import WidgetErrorBoundary from './WidgetErrorBoundary'
+
+type Props = {
+    instance: Instance
+    onEdit: () => void
+    onDelete: () => void
+    onMove: (direction: 'left' | 'right') => void
+    onSetApiKey: () => void
+}
+
+const NOT_RESPONDING = "The service isn't responding right now."
+
+// One message per code the API can answer with. Typed by WidgetErrorCode, so
+// a code added to the API stops this compiling until it has a message.
+const serviceMessages: Record<WidgetErrorCode, string> = {
+    rate_limited:
+        'Too many requests to this service. It will retry automatically.',
+    upstream_error: NOT_RESPONDING,
+    invalid_config: "This widget's settings are no longer valid.",
+    needs_reauth: 'This service needs to be reconnected.',
+}
+
+function messageFor(error: WidgetError) {
+    if (error.kind === 'network') return "Couldn't reach the dashboard server."
+    return serviceMessages[error.code]
+}
+
+function isInvalidConfig(error: WidgetError | null) {
+    return error?.kind === 'service' && error.code === 'invalid_config'
+}
+
+function formatTime(date: Date) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+export default function WidgetShell(props: Props) {
+    const { serviceId, widgetId } = props.instance
+    const entry = getWidgetEntry(serviceId, widgetId)
+    if ('legacy' in entry) {
+        return <LegacyShell {...props} Legacy={entry.legacy} />
+    }
+    return <DataShell {...props} entry={entry} />
+}
+
+// A legacy widget fetches for itself, so it only gets the frame.
+function LegacyShell({
+    Legacy,
+    ...props
+}: Props & { Legacy: ComponentType<WidgetProps> }) {
+    const { instance } = props
+    return (
+        <Frame {...props}>
+            <WidgetErrorBoundary>
+                <Legacy
+                    instanceId={instance.id}
+                    params={instance.params}
+                    refreshSeconds={instance.refreshSeconds}
+                />
+            </WidgetErrorBoundary>
+        </Frame>
+    )
+}
+
+function DataShell({
+    entry,
+    ...props
+}: Props & { entry: WidgetDefinition<unknown> }) {
+    const { instance, onEdit, onSetApiKey } = props
+    const { data, fetchedAt, error, isLoading, isRefreshing, refresh } =
+        useWidgetData(instance)
+
+    // Parsed once per fetch, not on every render: the widget gets the same
+    // object until new data arrives.
+    const parsed = useMemo(() => {
+        if (data === undefined) return null
+        try {
+            return { ok: true as const, value: entry.parse(data) }
+        } catch {
+            return { ok: false as const }
+        }
+    }, [data, entry])
+
+    const retry = (
+        <Button variant="secondary" onClick={refresh}>
+            Try again
+        </Button>
+    )
+
+    let body: ReactNode
+    let refreshFailed: string | null = null
+
+    if (isInvalidConfig(error)) {
+        // The stored settings can't produce data any more, so there is
+        // nothing valid to keep on screen.
+        body = (
+            <Alert
+                action={
+                    <Button variant="secondary" onClick={onEdit}>
+                        Edit settings
+                    </Button>
+                }
+            >
+                {serviceMessages.invalid_config}
+            </Alert>
+        )
+    } else if (isLoading) {
+        body = (
+            <div className="h-full flex items-center justify-center">
+                <Spinner />
+            </div>
+        )
+    } else if (parsed === null) {
+        // First load failed: there is no data to show.
+        const needsReauth =
+            error?.kind === 'service' && error.code === 'needs_reauth'
+        // Retrying can't help without a key, so offer to set one instead.
+        const setApiKey = (
+            <Button variant="secondary" onClick={onSetApiKey}>
+                Set API key
+            </Button>
+        )
+        body = (
+            <Alert action={needsReauth ? setApiKey : retry}>
+                {error ? messageFor(error) : NOT_RESPONDING}
+            </Alert>
+        )
+    } else if (!parsed.ok) {
+        body = <Alert action={retry}>{NOT_RESPONDING}</Alert>
+    } else {
+        const Widget = entry.component
+        body = (
+            <WidgetErrorBoundary onReload={refresh} resetKey={parsed.value}>
+                <Widget
+                    instance={instance}
+                    params={instance.params}
+                    data={parsed.value}
+                />
+            </WidgetErrorBoundary>
+        )
+        // A refresh failed but the last good data is still on screen.
+        if (error) refreshFailed = messageFor(error)
+    }
+
+    const status = (
+        <>
+            {isRefreshing && <Spinner label="Refreshing" className="h-3 w-3" />}
+            {refreshFailed && (
+                <span className="text-amber-400 text-xs" title={refreshFailed}>
+                    Refresh failed
+                    <span className="sr-only">: {refreshFailed}</span>
+                </span>
+            )}
+            {fetchedAt && (
+                <time
+                    dateTime={fetchedAt.toISOString()}
+                    className="text-gray-400 text-xs"
+                >
+                    {formatTime(fetchedAt)}
+                </time>
+            )}
+        </>
+    )
+
+    return (
+        <Frame {...props} status={status} onRefresh={refresh}>
+            {body}
+        </Frame>
+    )
+}
+
+type FrameProps = Props & {
+    status?: ReactNode
+    onRefresh?: () => void
+    children: ReactNode
+}
+
+function Frame({
+    instance,
+    status,
+    onRefresh,
+    onEdit,
+    onDelete,
+    onMove,
+    onSetApiKey,
+    children,
+}: FrameProps) {
+    // Every card shares the one cached catalog request.
+    const catalog = useCatalog()
+    const authKind = catalog.data?.find(
+        (service) => service.id === instance.serviceId,
+    )?.auth.kind
+    const title =
+        instance.title ?? `${instance.serviceId} / ${instance.widgetId}`
+    return (
+        <article
+            aria-label={title}
+            className="bg-gray-800 rounded-xl p-4 flex flex-col gap-2 h-full min-h-0"
+        >
+            <header className="flex flex-wrap justify-between items-center gap-2">
+                <h3 className="text-white font-semibold truncate">{title}</h3>
+                <div className="flex items-center gap-2">
+                    {status}
+                    {onRefresh && (
+                        <Button variant="ghost" onClick={onRefresh}>
+                            Refresh
+                        </Button>
+                    )}
+                    {authKind === 'apiKey' && (
+                        <Button variant="ghost" onClick={onSetApiKey}>
+                            API key
+                        </Button>
+                    )}
+                    <Button variant="ghost" onClick={onEdit}>
+                        Edit
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        aria-label="Move left"
+                        onClick={() => onMove('left')}
+                    >
+                        ←
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        aria-label="Move right"
+                        onClick={() => onMove('right')}
+                    >
+                        →
+                    </Button>
+                    <Button variant="dangerGhost" onClick={onDelete}>
+                        Delete
+                    </Button>
+                </div>
+            </header>
+            <div className="flex-1 min-h-0 overflow-auto">{children}</div>
+        </article>
+    )
+}

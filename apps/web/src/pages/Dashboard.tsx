@@ -1,117 +1,153 @@
-import { useState, useEffect } from 'react'
-import { useAuth } from '../auth'
+import { useState } from 'react'
 import { useNavigate } from 'react-router'
-import AddWidgetModal from '../components/AddWidgetModal'
+import { useAuth } from '../auth'
+import AddWidgetDialog from '../components/dashboard/AddWidgetDialog'
+import ApiKeyDialog from '../components/dashboard/ApiKeyDialog'
+import ConfirmDialog from '../components/dashboard/ConfirmDialog'
+import EditWidgetDialog from '../components/dashboard/EditWidgetDialog'
+import {
+    layoutChanges,
+    move,
+    pack,
+    sortByPosition,
+} from '../components/dashboard/layout'
+import {
+    errorMessage,
+    useDeleteInstance,
+    useInstances,
+    useSaveLayout,
+} from '../components/dashboard/queries'
+import type { Instance } from '../components/dashboard/types'
+import Alert from '../components/ui/Alert'
+import Button from '../components/ui/Button'
+import Spinner from '../components/ui/Spinner'
 import WidgetGrid from '../components/WidgetGrid'
-import { api } from '../api'
-
-type WidgetInstance = {
-    id: string
-    serviceId: string
-    widgetId: string
-    title: string | null
-    params: Record<string, string | number>
-    refreshSeconds: number
-    x: number
-    y: number
-    w: number
-    h: number
-}
 
 export default function Dashboard() {
     const { user, logout } = useAuth()
     const navigate = useNavigate()
 
-    const [widgets, setWidgets] = useState<WidgetInstance[]>([])
-    const [modalOpen, setModalOpen] = useState(false)
+    const instances = useInstances()
+    const saveLayout = useSaveLayout()
+    const remove = useDeleteInstance()
 
-    useEffect(() => {
-        api.dashboard.instances.get().then(({ data, error }) => {
-            if (error) {
-                console.error(error)
-                return
-            }
-            setWidgets(data?.instances ?? [])
-        })
-    }, [])
+    const [adding, setAdding] = useState(false)
+    // Ids, not the instances themselves: the dialogs always get the current
+    // version from the list.
+    const [editingId, setEditingId] = useState<string | null>(null)
+    const [deletingId, setDeletingId] = useState<string | null>(null)
+    const [apiKeyId, setApiKeyId] = useState<string | null>(null)
 
-    const reloadWidgets = () => {
-        api.dashboard.instances.get().then(({ data, error }) => {
-            if (error) return
-            setWidgets(data?.instances ?? [])
-        })
-    }
+    const list = instances.data ?? []
+    const editing = list.find((instance) => instance.id === editingId) ?? null
+    const apiKeyFor = list.find((instance) => instance.id === apiKeyId) ?? null
+    const deleting = list.find((instance) => instance.id === deletingId) ?? null
+
+    const deletingName = deleting
+        ? (deleting.title ?? `${deleting.serviceId} / ${deleting.widgetId}`)
+        : ''
 
     const handleLogout = async () => {
-    await logout()
-    navigate('/login')
+        await logout()
+        navigate('/login')
     }
 
-    const handleDelete = async (id: string) => {
-        const { error } = await api.dashboard.instances({ id }).delete()
-        if (error) {
-            console.error(error)
-            alert('Failed to delete widget')
-            return
-        }
-        setWidgets(widgets.filter(w => w.id !== id))
+    const handleMove = (instance: Instance, direction: 'left' | 'right') => {
+        const changes = layoutChanges(list, move(list, instance.id, direction))
+        if (changes.length > 0) saveLayout.mutate(changes)
     }
 
-    const handleMove = async (id: string, direction: 'left' | 'right') => {
-        const index = widgets.findIndex(w => w.id === id)
-        if (index === -1) return
-    
-        const newWidgets = [...widgets]
-        if (direction === 'left' && index > 0) {
-            [newWidgets[index - 1], newWidgets[index]] = [newWidgets[index], newWidgets[index - 1]]
-        } else if (direction === 'right' && index < newWidgets.length - 1) {
-            [newWidgets[index], newWidgets[index + 1]] = [newWidgets[index + 1], newWidgets[index]]
-        } else {
-            return
-        }
-    
-        setWidgets(newWidgets)
-    
-        // Actualiza las posiciones en el back
-        const updates = newWidgets.map((w, i) => ({
-            id: w.id,
-            x: i * 4,
-            y: w.y,
-            w: w.w,
-            h: w.h,
-        }))
-    
-        const { error } = await api.dashboard.layout.patch(updates)
+    const handleDelete = () => {
+        if (!deleting) return
+        remove.mutate(deleting.id, {
+            onSuccess: () => {
+                setDeletingId(null)
+                // Close the gap the deleted card leaves behind.
+                const rest = list.filter((other) => other.id !== deleting.id)
+                const changes = layoutChanges(rest, pack(sortByPosition(rest)))
+                if (changes.length > 0) saveLayout.mutate(changes)
+            },
+        })
+    }
 
-        if (error) {
-            console.error(error.value)
-            reloadWidgets()
-        }
+    const cancelDelete = () => {
+        setDeletingId(null)
+        remove.reset()
     }
 
     return (
-    <div className="min-h-screen bg-gray-900">
+        <div className="min-h-screen bg-gray-900">
+            <header className="flex justify-between items-center p-4 bg-gray-800 text-white">
+                <h1 className="text-xl font-bold">My Dashboard</h1>
+                <div className="flex items-center gap-4">
+                    <Button onClick={() => setAdding(true)}>Add Widget</Button>
+                    <span className="text-gray-300">{user?.email}</span>
+                    <Button variant="danger" onClick={handleLogout}>
+                        Logout
+                    </Button>
+                </div>
+            </header>
 
-        <header className="flex justify-between items-center p-4 bg-gray-800 text-white">
-        <h1 className="text-xl font-bold">My Dashboard</h1>
-        <div className="flex items-center gap-4">
-            <button onClick={() => setModalOpen(true)} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 transition">
-            Add Widget
-            </button>
-            <span className="text-gray-300">{user?.email}</span>
-            <button
-            onClick={handleLogout}
-            className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 transition"
-            >
-            Logout
-            </button>
+            <main className="p-6">
+                {saveLayout.isError && (
+                    <Alert className="mb-4">
+                        The new layout couldn't be saved.{' '}
+                        {errorMessage(saveLayout.error)}
+                    </Alert>
+                )}
+
+                {instances.isPending ? (
+                    <div className="flex justify-center mt-12">
+                        <Spinner label="Loading dashboard" />
+                    </div>
+                ) : instances.isError ? (
+                    <Alert
+                        action={
+                            <Button
+                                variant="secondary"
+                                onClick={() => instances.refetch()}
+                            >
+                                Try again
+                            </Button>
+                        }
+                    >
+                        {errorMessage(instances.error)}
+                    </Alert>
+                ) : (
+                    <WidgetGrid
+                        instances={list}
+                        onEdit={(instance) => setEditingId(instance.id)}
+                        onDelete={(instance) => setDeletingId(instance.id)}
+                        onMove={handleMove}
+                        onSetApiKey={(instance) => setApiKeyId(instance.id)}
+                    />
+                )}
+            </main>
+
+            <AddWidgetDialog
+                open={adding}
+                onClose={() => setAdding(false)}
+                instances={list}
+            />
+            <EditWidgetDialog
+                instance={editing}
+                onClose={() => setEditingId(null)}
+                instances={list}
+            />
+            <ApiKeyDialog
+                instance={apiKeyFor}
+                onClose={() => setApiKeyId(null)}
+            />
+            <ConfirmDialog
+                open={deleting !== null}
+                title="Delete widget"
+                message={`Delete "${deletingName}"? This cannot be undone.`}
+                confirmLabel="Delete"
+                busy={remove.isPending}
+                error={remove.isError ? errorMessage(remove.error) : null}
+                onConfirm={handleDelete}
+                onCancel={cancelDelete}
+            />
         </div>
-        </header>
-
-        <main className="p-6">
-        <WidgetGrid widgets={widgets} onDelete={handleDelete} onMove={handleMove} />
-        </main>
-        <AddWidgetModal open={modalOpen} onClose={() => setModalOpen(false)} onCreated={reloadWidgets} />
-    </div>
     )
 }
