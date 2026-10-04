@@ -1,6 +1,8 @@
 import type { ComponentType } from 'react'
 import type { Instance, InstanceParams } from './dashboard/types'
 import AdviceWidget from './widgets/AdviceWidget'
+import FoxWidget from './widgets/FoxWidget'
+import NasaApodWidget from './widgets/NasaApod'
 import EchoWidget from './widgets/mock/echo/EchoWidget'
 import { parseEcho } from './widgets/mock/echo/parse'
 
@@ -56,6 +58,13 @@ function DefaultWidget({ params }: WidgetProps) {
     )
 }
 
+// El mapa: cada clave es "serviceId/widgetId", el valor es el componente React
+const registry: Record<string, ComponentType<WidgetProps>> = {
+    //'mock/echo': EchoWidget,
+    'advice_slip/random_advice': AdviceWidget,
+    'random_fox/random_fox': FoxWidget,
+    'nasa/apod': NasaApodWidget,
+}
 const fallback: WidgetEntry = {
     legacy: DefaultWidget,
     defaultSize: { w: 4, h: 3 },
