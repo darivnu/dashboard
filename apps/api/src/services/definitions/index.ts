@@ -9,6 +9,7 @@ import { mockKeyService, mockService } from './mock'
 import { radioBrowserService } from './radio-browser'
 import { adviceService } from './advice'
 import { randomFoxService } from './random_fox'
+import { nasaService } from './nasa'
 
 /** Registered in every environment. Real, production-ready services go here. */
 export const services: ServiceDef[] = [radioBrowserService, adviceService, randomFoxService]
@@ -18,4 +19,4 @@ export const services: ServiceDef[] = [radioBrowserService, adviceService, rando
  * For fixtures like the mocks: they must never appear in a production
  * /about.json or catalog, and instances of them must be rejected there.
  */
-export const devOnlyServices: ServiceDef[] = [mockService, mockKeyService]
+export const devOnlyServices: ServiceDef[] = [mockService, mockKeyService, nasaService]
