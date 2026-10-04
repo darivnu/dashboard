@@ -12,11 +12,11 @@ import { randomFoxService } from './random_fox'
 import { nasaService } from './nasa'
 
 /** Registered in every environment. Real, production-ready services go here. */
-export const services: ServiceDef[] = [radioBrowserService, adviceService, randomFoxService]
+export const services: ServiceDef[] = [radioBrowserService, adviceService, randomFoxService, nasaService]
 
 /**
  * Registered only when NODE_ENV !== 'production' (register.ts decides).
  * For fixtures like the mocks: they must never appear in a production
  * /about.json or catalog, and instances of them must be rejected there.
  */
-export const devOnlyServices: ServiceDef[] = [mockService, mockKeyService, nasaService]
+export const devOnlyServices: ServiceDef[] = [mockService, mockKeyService]

@@ -41,8 +41,8 @@ export default function NasaApodWidget({ instanceId, refreshSeconds }: WidgetPro
     return ( //thank u llm
     <div className="flex flex-col gap-2">
         <h4 className="text-white font-semibold">{data.title}</h4>
-        <p className="text-gray-300 text-sm">{data.date}</p>
-        {data.mediaType === 'image'
+        <p className="text-gray-300 text-sm">{new Date(data.date).toLocaleDateString()}</p>
+        {data.media_type === 'image'
             ? <img src={data.image} alt={data.alt} className="w-full rounded-lg object-cover" />
             : <a href={data.link} target="_blank" rel="noreferrer" className="text-blue-400 underline">Today's APOD is a video, watch it here</a>}
 
