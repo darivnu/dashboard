@@ -7,6 +7,7 @@ import {
     type WidgetDefinition,
     type WidgetProps,
 } from '../widgetRegistry'
+import { useCatalog } from './queries'
 import type { Instance, WidgetErrorCode } from './types'
 import { useWidgetData, type WidgetError } from './useWidgetData'
 import WidgetErrorBoundary from './WidgetErrorBoundary'
@@ -16,6 +17,7 @@ type Props = {
     onEdit: () => void
     onDelete: () => void
     onMove: (direction: 'left' | 'right') => void
+    onSetApiKey: () => void
 }
 
 const NOT_RESPONDING = "The service isn't responding right now."
@@ -75,7 +77,7 @@ function DataShell({
     entry,
     ...props
 }: Props & { entry: WidgetDefinition<unknown> }) {
-    const { instance, onEdit } = props
+    const { instance, onEdit, onSetApiKey } = props
     const { data, fetchedAt, error, isLoading, isRefreshing, refresh } =
         useWidgetData(instance)
 
@@ -123,8 +125,14 @@ function DataShell({
         // First load failed: there is no data to show.
         const needsReauth =
             error?.kind === 'service' && error.code === 'needs_reauth'
+        // Retrying can't help without a key, so offer to set one instead.
+        const setApiKey = (
+            <Button variant="secondary" onClick={onSetApiKey}>
+                Set API key
+            </Button>
+        )
         body = (
-            <Alert action={needsReauth ? undefined : retry}>
+            <Alert action={needsReauth ? setApiKey : retry}>
                 {error ? messageFor(error) : NOT_RESPONDING}
             </Alert>
         )
@@ -185,8 +193,14 @@ function Frame({
     onEdit,
     onDelete,
     onMove,
+    onSetApiKey,
     children,
 }: FrameProps) {
+    // Every card shares the one cached catalog request.
+    const catalog = useCatalog()
+    const authKind = catalog.data?.find(
+        (service) => service.id === instance.serviceId,
+    )?.auth.kind
     const title =
         instance.title ?? `${instance.serviceId} / ${instance.widgetId}`
     return (
@@ -201,6 +215,11 @@ function Frame({
                     {onRefresh && (
                         <Button variant="ghost" onClick={onRefresh}>
                             Refresh
+                        </Button>
+                    )}
+                    {authKind === 'apiKey' && (
+                        <Button variant="ghost" onClick={onSetApiKey}>
+                            API key
                         </Button>
                     )}
                     <Button variant="ghost" onClick={onEdit}>
