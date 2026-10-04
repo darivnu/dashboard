@@ -13,7 +13,7 @@ export default function FoxWidget({ data }: WidgetViewProps<FoxData>) {
         <img
             src={data.image}
             alt="Random fox"
-            className="w-full rounded-lg object-cover"
+            className="w-full h-full object-contain"
         />
     )
 }

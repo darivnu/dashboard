@@ -13,7 +13,7 @@ export default function ApodWidget({ data }: WidgetViewProps<ApodData>) {
     const [showExplanation, setShowExplanation] = useState(false)
 
     return (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 h-full">
             <h4 className="text-white font-semibold">{data.title}</h4>
             <p className="text-gray-300 text-sm">
                 {new Date(data.date).toLocaleDateString()}
@@ -22,7 +22,7 @@ export default function ApodWidget({ data }: WidgetViewProps<ApodData>) {
                 <img
                     src={data.hdurl}
                     alt={data.alt}
-                    className="w-full rounded-lg object-cover"
+                    className="w-full flex-1 min-h-0 object-contain"
                 />
             ) : (
                 <a

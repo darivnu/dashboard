@@ -76,7 +76,7 @@ const echo = defineWidget({
 const fox = defineWidget({
     component: FoxWidget,
     parse: parseFox,
-    defaultSize: { w: 4, h: 4 },
+    defaultSize: { w: 4, h: 5 },
     minSize: { w: 2, h: 2 },
 })
 
@@ -93,8 +93,8 @@ const entries: Record<string, WidgetEntry> = {
     'mock_key/secret_echo': echo,
     'advice_slip/random_advice': {
         legacy: AdviceWidget,
-        defaultSize: { w: 4, h: 3 },
-        minSize: { w: 2, h: 2 },
+        defaultSize: { w: 4, h: 2 },
+        minSize: { w: 2, h: 1 },
     },
     'random_fox/random_fox': fox,
     'nasa/apod': apod,
