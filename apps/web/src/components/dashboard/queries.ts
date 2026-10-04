@@ -3,6 +3,7 @@ import { api } from '../../api'
 import type {
     CreateInstanceBody,
     Instance,
+    InstanceParams,
     LayoutItem,
     UpdateInstanceBody,
 } from './types'
@@ -141,6 +142,35 @@ export function useSaveLayout() {
         },
         onSuccess: (instances) => {
             client.setQueryData(queryKeys.instances, instances)
+        },
+    })
+}
+
+export function useSetApiKey() {
+    const client = useQueryClient()
+    return useMutation({
+        mutationFn: async (input: {
+            serviceId: string
+            credentials: InstanceParams
+        }) =>
+            unwrap(
+                await api
+                    .subscriptions({ service: input.serviceId })
+                    .post(input.credentials),
+            ),
+        onSuccess: (_subscription, { serviceId }) => {
+            // The catalog carries the subscription status.
+            client.invalidateQueries({ queryKey: queryKeys.catalog })
+            // The key is shared by every widget of the service, and widget
+            // data does not retry, so refetch them all now.
+            const instances =
+                client.getQueryData<Instance[]>(queryKeys.instances) ?? []
+            for (const instance of instances) {
+                if (instance.serviceId !== serviceId) continue
+                client.invalidateQueries({
+                    queryKey: queryKeys.widgetData(instance.id),
+                })
+            }
         },
     })
 }
