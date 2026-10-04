@@ -8,6 +8,7 @@ type Props = {
     onEdit: (instance: Instance) => void
     onDelete: (instance: Instance) => void
     onMove: (instance: Instance, direction: 'left' | 'right') => void
+    onSetApiKey: (instance: Instance) => void
 }
 
 export default function WidgetGrid({
@@ -15,6 +16,7 @@ export default function WidgetGrid({
     onEdit,
     onDelete,
     onMove,
+    onSetApiKey,
 }: Props) {
     if (instances.length === 0) {
         return (
@@ -43,6 +45,7 @@ export default function WidgetGrid({
                         onEdit={() => onEdit(instance)}
                         onDelete={() => onDelete(instance)}
                         onMove={(direction) => onMove(instance, direction)}
+                        onSetApiKey={() => onSetApiKey(instance)}
                     />
                 </div>
             ))}

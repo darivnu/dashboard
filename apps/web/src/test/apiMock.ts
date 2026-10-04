@@ -15,6 +15,9 @@ export const apiMock = {
     deleteInstance: vi.fn(),
     instanceData: vi.fn(),
     saveLayout: vi.fn(),
+    /** receives the `{ service }` given to `api.subscriptions({ service })` */
+    subscriptionByService: vi.fn(),
+    subscribe: vi.fn(),
 }
 
 export const apiModule = {
@@ -33,6 +36,10 @@ export const apiModule = {
                 { get: apiMock.listInstances, post: apiMock.createInstance },
             ),
             layout: { patch: apiMock.saveLayout },
+        },
+        subscriptions: (params: { service: string }) => {
+            apiMock.subscriptionByService(params)
+            return { post: apiMock.subscribe }
         },
     },
 }

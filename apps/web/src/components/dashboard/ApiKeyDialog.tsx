@@ -47,7 +47,7 @@ function ApiKeyContent({ services, instance, onClose }: ContentProps) {
         (candidate) => candidate.id === instance.serviceId,
     )
 
-    if (!service || service.auth.kind !== 'apiKey') {
+    if (service?.auth.kind !== 'apiKey') {
         return (
             <Alert variant="info">This service doesn't use an API key.</Alert>
         )
