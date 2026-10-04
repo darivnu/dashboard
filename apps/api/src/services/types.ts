@@ -19,6 +19,7 @@ export interface WidgetRefresh {
 
 export interface HttpClient {
     json<T = unknown>(url: string, init?: RequestInit): Promise<T>
+    text(url: string, init?: RequestInit): Promise<string>
 }
 
 /**
