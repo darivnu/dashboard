@@ -8,6 +8,7 @@ import {
 } from './widgetRegistry'
 import AdviceWidget from './widgets/AdviceWidget'
 import EchoWidget from './widgets/mock/echo/EchoWidget'
+import StationMap from './widgets/radio-browser/station-map/StationMap'
 
 describe('defineWidget', () => {
     type Greeting = { text: string }
@@ -89,11 +90,22 @@ describe('getWidgetEntry', () => {
         expect(() => echo.parse('nope')).toThrow()
     })
 
+    test('the station map is registered 6 x 5, at least 4 x 4', () => {
+        const entry = getWidgetEntry('radio_browser', 'station_map')
+        if ('legacy' in entry) throw new Error('expected a widget-base entry')
+        expect(entry.component).toBe(StationMap)
+        expect(entry.defaultSize).toEqual({ w: 6, h: 5 })
+        expect(entry.minSize).toEqual({ w: 4, h: 4 })
+        expect(entry.parse({ stations: [] })).toEqual({ stations: [] })
+        expect(() => entry.parse({ stations: 'many' })).toThrow()
+    })
+
     test('every entry has a default size no smaller than its minimum', () => {
         for (const [service, widget] of [
             ['advice_slip', 'random_advice'],
             ['mock', 'echo'],
             ['mock_key', 'secret_echo'],
+            ['radio_browser', 'station_map'],
             ['random_fox', 'random_fox'],
             ['nasa', 'apod'],
             ['nope', 'nothing'],

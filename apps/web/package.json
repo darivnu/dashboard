@@ -13,6 +13,7 @@
         "@elysiajs/eden": "^1.4.9",
         "@tailwindcss/vite": "^4.3.3",
         "@tanstack/react-query": "^5.104.1",
+        "maplibre-gl": "^6.12.0",
         "react": "^19.1.0",
         "react-dom": "^19.1.0",
         "react-router": "^8.4.0",

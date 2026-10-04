@@ -22,16 +22,25 @@ interface RecordedCall {
     headers: Headers
 }
 
-/** Records every request and answers with whatever `reply` returns (or throws). */
+const SEARCH_PATH = '/json/stations/search'
+const PINNED_ID = '79930fba-66b9-42cc-8b40-cf766176a38d'
+const PINNED_PATH = `/json/stations/byuuid/${PINNED_ID}`
+
+/**
+ * Records every request and answers with whatever `reply` returns (or throws).
+ * The lookup of the pinned station has its own reply, an empty list unless a
+ * test sets one, so the other tests see only the station search.
+ */
 function createStubHttp() {
     const calls: RecordedCall[] = []
     let reply: (url: URL) => unknown = () => []
+    let pinnedReply: () => unknown = () => []
 
     const http: HttpClient = {
         async json<T>(url: string, init?: RequestInit): Promise<T> {
             const parsed = new URL(url)
             calls.push({ url: parsed, headers: new Headers(init?.headers) })
-            return reply(parsed) as T
+            return (parsed.pathname === PINNED_PATH ? pinnedReply() : reply(parsed)) as T
         },
     }
 
@@ -40,6 +49,9 @@ function createStubHttp() {
         calls,
         replyWith(next: (url: URL) => unknown) {
             reply = next
+        },
+        replyPinnedWith(next: () => unknown) {
+            pinnedReply = next
         },
     }
 }
@@ -115,10 +127,15 @@ async function fetchStations(params: Record<string, unknown> = {}): Promise<Stat
     return (result.data as { stations: StationOut[] }).stations
 }
 
-/** The single upstream request made so far. */
+function callsTo(pathname: string): RecordedCall[] {
+    return stub.calls.filter((call) => call.url.pathname === pathname)
+}
+
+/** The single station search made so far. */
 function onlyCall(): RecordedCall {
-    expect(stub.calls).toHaveLength(1)
-    return stub.calls[0]!
+    const searches = callsTo(SEARCH_PATH)
+    expect(searches).toHaveLength(1)
+    return searches[0]!
 }
 
 function queryOf(call: RecordedCall): Record<string, string> {
@@ -425,6 +442,131 @@ describe('caching', () => {
 
         expect(first.ok).toBe(true)
         expect(second).toEqual(first)
-        expect(stub.calls).toHaveLength(1)
+        expect(callsTo(SEARCH_PATH)).toHaveLength(1)
+        expect(callsTo(PINNED_PATH)).toHaveLength(1)
+    })
+})
+
+describe('pinned station', () => {
+    // The directory entry as it is today: playable, but without coordinates
+    // and far too few clicks to rank.
+    function pinnedRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+        return {
+            stationuuid: PINNED_ID,
+            name: 'Spinning Seal FM',
+            url: 'https://stream.zeno.fm/9q3ez3k3fchvv',
+            url_resolved: 'https://stream.zeno.fm/9q3ez3k3fchvv',
+            favicon: '',
+            hls: 0,
+            clickcount: 2,
+            geo_lat: null,
+            geo_long: null,
+            ...overrides,
+        }
+    }
+
+    test('is looked up by its id, with the User-Agent', async () => {
+        await fetchMap()
+
+        const lookups = callsTo(PINNED_PATH)
+        expect(lookups).toHaveLength(1)
+        expect(lookups[0]!.url.origin).toBe('https://all.api.radio-browser.info')
+        expect(lookups[0]!.url.search).toBe('')
+        expect(lookups[0]!.headers.get('user-agent')).toBe(USER_AGENT)
+    })
+
+    test('is added after the most listened stations, on top of `limit`, at its fixed position', async () => {
+        stub.replyWith(() => stationRows(20))
+        stub.replyPinnedWith(() => [pinnedRow()])
+
+        const stations = await fetchStations({ limit: 3 })
+
+        expect(stations).toHaveLength(4)
+        expect(stations[3]).toEqual({
+            id: PINNED_ID,
+            name: 'Spinning Seal FM',
+            streamUrl: 'https://stream.zeno.fm/9q3ez3k3fchvv',
+            favicon: null,
+            hls: false,
+            lat: 40.423194,
+            lng: -3.710889,
+        })
+    })
+
+    test('keeps its fixed position even if the directory gains coordinates', async () => {
+        stub.replyPinnedWith(() => [pinnedRow({ geo_lat: 59.33, geo_long: 18.07 })])
+
+        const [pinned] = await fetchStations()
+
+        expect(pinned).toMatchObject({ lat: 40.423194, lng: -3.710889 })
+    })
+
+    test('is the only station when the search returns nothing usable', async () => {
+        stub.replyPinnedWith(() => [pinnedRow()])
+
+        expect((await fetchStations()).map((station) => station.id)).toEqual([PINNED_ID])
+    })
+
+    test.each([
+        ['is not found (empty list)', () => []],
+        ['is an unexpected body', () => ({ error: 'nope' })],
+        ['is not an object', () => ['nope']],
+        ['has no https stream', () => [pinnedRow({ url_resolved: 'http://stream.zeno.fm/9q3ez3k3fchvv' })]],
+        ['has no id', () => [pinnedRow({ stationuuid: '' })]],
+    ])('is left out when the lookup %s', async (_label, reply) => {
+        stub.replyWith(() => stationRows(3))
+        stub.replyPinnedWith(reply)
+
+        const stations = await fetchStations()
+
+        expect(stations).toHaveLength(3)
+        expect(stations.map((station) => station.id)).not.toContain(PINNED_ID)
+    })
+
+    test.each([
+        ['an upstream error', new WidgetFetchError('upstream_error', 'Request failed with status 500')],
+        ['a rate limit', new WidgetFetchError('rate_limited', 'Request failed with status 429')],
+        ['an unexpected exception', new Error('boom')],
+    ])('a lookup failing with %s does not fail the widget', async (_label, error) => {
+        stub.replyWith(() => stationRows(3))
+        stub.replyPinnedWith(() => {
+            throw error
+        })
+
+        const result = await fetchMap()
+
+        expect(result.ok).toBe(true)
+        expect(result.ok && (result.data as { stations: StationOut[] }).stations).toHaveLength(3)
+    })
+
+    test('a failing search still fails the widget, whatever the lookup returns', async () => {
+        stub.replyWith(() => {
+            throw new WidgetFetchError('rate_limited', 'Request failed with status 429')
+        })
+        stub.replyPinnedWith(() => [pinnedRow()])
+
+        expect(await fetchMap()).toEqual({ ok: false, code: 'rate_limited' })
+    })
+
+    test('is not repeated when the search already returned it', async () => {
+        const ranked = stationRow({ stationuuid: PINNED_ID, name: 'Spinning Seal FM' })
+        stub.replyWith(() => [stationRow(), ranked, stationRow()])
+        stub.replyPinnedWith(() => [pinnedRow()])
+
+        const stations = await fetchStations()
+
+        expect(stations).toHaveLength(3)
+        expect(stations.filter((station) => station.id === PINNED_ID)).toHaveLength(1)
+    })
+
+    test('is not added when another entry of the search already has its stream', async () => {
+        const sameStream = stationRow({ url_resolved: 'https://stream.zeno.fm/9q3ez3k3fchvv' })
+        stub.replyWith(() => [stationRow(), sameStream])
+        stub.replyPinnedWith(() => [pinnedRow()])
+
+        const stations = await fetchStations()
+
+        expect(stations).toHaveLength(2)
+        expect(stations.map((station) => station.id)).not.toContain(PINNED_ID)
     })
 })

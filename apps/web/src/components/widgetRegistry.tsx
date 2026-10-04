@@ -5,6 +5,8 @@ import EchoWidget from './widgets/mock/echo/EchoWidget'
 import { parseEcho } from './widgets/mock/echo/parse'
 import ApodWidget from './widgets/nasa/apod/ApodWidget'
 import { parseApod } from './widgets/nasa/apod/parse'
+import { parseStationMap } from './widgets/radio-browser/station-map/parse'
+import StationMap from './widgets/radio-browser/station-map/StationMap'
 import FoxWidget from './widgets/random_fox/random_fox/FoxWidget'
 import { parseFox } from './widgets/random_fox/random_fox/parse'
 
@@ -73,6 +75,13 @@ const echo = defineWidget({
     minSize: { w: 2, h: 2 },
 })
 
+const stationMap = defineWidget({
+    component: StationMap,
+    parse: parseStationMap,
+    defaultSize: { w: 6, h: 5 },
+    minSize: { w: 4, h: 4 },
+})
+
 const fox = defineWidget({
     component: FoxWidget,
     parse: parseFox,
@@ -89,6 +98,7 @@ const apod = defineWidget({
 
 // El mapa: cada clave es "serviceId/widgetId"
 const entries: Record<string, WidgetEntry> = {
+    'radio_browser/station_map': stationMap,
     'mock/echo': echo,
     'mock_key/secret_echo': echo,
     'advice_slip/random_advice': {

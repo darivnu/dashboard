@@ -22,6 +22,29 @@ cp apps/api/.env.example apps/api/.env
 cd apps/api && bun run dev
 ```
 
+That starts the API on http://localhost:8080. In a second terminal, start the frontend:
+
+```sh
+cd apps/web && bun run dev
+```
+
+Then open http://localhost:5173. `bun run dev` from the repo root starts both at once.
+
+## Tests, lint and format (frontend)
+
+```sh
+cd apps/web
+bun run test                  # Vitest
+bun run check                 # Biome: lint + format + import order, report only
+bunx biome check --write .    # Biome: apply every safe fix
+```
+
+## Documentation
+
+- [`apps/web/README.md`](apps/web/README.md) — frontend: structure, widget base, how to add a widget
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — overall architecture and the service/widget registry
+- [`docs/BACKEND.md`](docs/BACKEND.md) — backend modules and routes
+
 ## Email (Brevo)
 
 Without SMTP variables the API prints every email to its logs instead of sending it. To send for real:
