@@ -13,6 +13,9 @@
  *   - `mock_key`  auth.kind 'apiKey'  → the user must subscribe with a key first;
  *                                       the data endpoint passes it as ctx.credentials
  *
+ * `mock` also declares an action, `ping`: the template for anything a user
+ * triggers on demand rather than a widget fetched on a timer.
+ *
  * Only registered outside production (see index.ts `devOnlyServices`).
  */
 import type { ParamDef, ServiceDef, WidgetFetchErrorCode, WidgetParams } from '../types'
@@ -75,7 +78,7 @@ function failIfRequested(params: WidgetParams): void {
 
     const code = FAIL_CODES.find((candidate) => candidate === requested)
     if (code) {
-        throw new WidgetFetchError(code, `mock widget asked to fail with "${code}"`)
+        throw new WidgetFetchError(code, `mock asked to fail with "${code}"`)
     }
 }
 
@@ -183,6 +186,87 @@ export const mockService: ServiceDef = {
                     message,
                     count,
                     repeated: Array.from({ length: count }, () => message),
+                    timestamp: new Date().toISOString(),
+                }
+            },
+        },
+    ],
+
+    /**
+     * Actions: what a user TRIGGERS, as opposed to a widget, which the
+     * dashboard fetches on a timer. "Report a play" or "star a repository"
+     * are actions. The list is optional; a service without it has none.
+     *
+     * No route to write: every action of every service is run by
+     *   POST /api/services/:serviceId/actions/:actionId   body { params }
+     * (modules/actions/). This one is POST /api/services/mock/actions/ping.
+     * The catalog lists it under the service's `actions`; /about.json does not.
+     *
+     * What the route does, in order:
+     *   1. unknown service or action          → 404 NOT_FOUND
+     *   2. over `rateLimit`                   → 429 RATE_LIMITED + Retry-After
+     *   3. params invalid                     → 400 INVALID_PARAMS
+     *   4. service auth is not 'none'         → 200 { ok: false, code: 'needs_reauth' }
+     *      (actions get no credentials yet, so run() is not called)
+     *   5. run()                              → 200 { ok: true, data }
+     */
+    actions: [
+        {
+            // Unique within the service; it is the :actionId of the URL.
+            id: 'ping',
+            // Shown by the frontend and returned by /api/catalog.
+            name: 'Ping',
+            description: 'Sends a message and gets it back with a timestamp',
+
+            /**
+             * Same ParamDef shape and same validation as widget params:
+             * unknown keys are dropped, defaults applied, numeric strings
+             * become integers, and integer `min` / `max` are enforced. Here
+             * the values come from the request body, not from a stored
+             * instance, so bad input is always a 400 INVALID_PARAMS.
+             */
+            params: [
+                {
+                    name: 'message',
+                    label: 'Message to send back',
+                    type: 'string',
+                    required: true,
+                },
+                failParam,
+            ],
+
+            /**
+             * Optional. At most `max` calls per `windowSeconds`, counted per
+             * user AND per action: one user pinging too often slows down
+             * neither another user nor their own other actions. The window
+             * starts at the user's first call. The call over the limit gets a
+             * 429 with a Retry-After header, and run() is not called.
+             *
+             * Every call that reaches step 2 counts, including one whose
+             * params turn out invalid. Without `rateLimit` the action is not
+             * limited at all, so set one on anything that hits an upstream.
+             * The registry refuses at boot a `max` or `windowSeconds` that is
+             * not an integer >= 1.
+             */
+            rateLimit: { max: 5, windowSeconds: 60 },
+
+            /**
+             * Called with the validated params. Same rules as a widget's
+             * fetch(): use `ctx.http`, never the global fetch(), and signal
+             * failure by THROWING WidgetFetchError:
+             *   needs_reauth | rate_limited | upstream_error → 200 { ok: false, code }
+             *   invalid_config                               → 400 INVALID_PARAMS
+             * Any other exception is logged and becomes `upstream_error`.
+             *
+             * Unlike a widget, the result is NEVER cached: two identical
+             * calls run twice. Whatever this returns is sent as
+             * `{ ok: true, data }`.
+             */
+            async run(_ctx, params) {
+                failIfRequested(params)
+
+                return {
+                    message: String(params.message),
                     timestamp: new Date().toISOString(),
                 }
             },

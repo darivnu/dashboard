@@ -1,5 +1,5 @@
 import { isOAuthProviderId } from './oauth/ids'
-import type { ParamDef, ServiceDef, WidgetDef, WidgetRefresh } from './types'
+import type { ActionDef, ActionRateLimit, ParamDef, ServiceDef, WidgetDef, WidgetRefresh } from './types'
 
 const services = new Map<string, ServiceDef>()
 
@@ -50,6 +50,15 @@ function assertValidRefresh(scope: string, refresh: WidgetRefresh): void {
     }
 }
 
+function assertValidRateLimit(scope: string, rateLimit: ActionRateLimit): void {
+    for (const field of ['max', 'windowSeconds'] as const) {
+        const value = rateLimit[field]
+        if (!Number.isInteger(value) || value < 1) {
+            throw new Error(`${scope}: rateLimit.${field} must be an integer >= 1, got ${value}`)
+        }
+    }
+}
+
 function assertValidService(def: ServiceDef): void {
     if (services.has(def.id)) {
         throw new Error(`Service "${def.id}" is already registered`)
@@ -67,6 +76,20 @@ function assertValidService(def: ServiceDef): void {
         assertUniqueParams(scope, widget.params)
         assertValidBounds(scope, widget.params)
         assertValidRefresh(scope, widget.refresh)
+    }
+
+    const actionIds = new Set<string>()
+    for (const action of def.actions ?? []) {
+        const scope = `${def.id} action "${action.id}"`
+
+        if (actionIds.has(action.id)) {
+            throw new Error(`Service "${def.id}": duplicate action id "${action.id}"`)
+        }
+        actionIds.add(action.id)
+
+        assertUniqueParams(scope, action.params)
+        assertValidBounds(scope, action.params)
+        if (action.rateLimit) assertValidRateLimit(scope, action.rateLimit)
     }
 
     if (def.auth.kind === 'apiKey') {
@@ -99,6 +122,10 @@ export const registry = {
 
     getWidget(serviceId: string, widgetId: string): WidgetDef | undefined {
         return services.get(serviceId)?.widgets.find((widget) => widget.id === widgetId)
+    },
+
+    getAction(serviceId: string, actionId: string): ActionDef | undefined {
+        return services.get(serviceId)?.actions?.find((action) => action.id === actionId)
     },
 
     listServices(): ServiceDef[] {

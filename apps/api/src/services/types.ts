@@ -83,6 +83,32 @@ export interface WidgetDef {
     fetch(ctx: FetchCtx, params: WidgetParams): Promise<unknown>
 }
 
+export interface ActionRateLimit {
+    /** Calls allowed per window, per user and per action. Integer >= 1. */
+    max: number
+    /** Length of the window in seconds. Integer >= 1. */
+    windowSeconds: number
+}
+
+/**
+ * Something a user triggers on demand (report a play, star a repository),
+ * as opposed to a widget, which is fetched on a timer.
+ *
+ * Every action is run by the same route,
+ * POST /api/services/:serviceId/actions/:actionId, so declaring one here is
+ * all it takes. `params` follow the same rules as widget params and are
+ * validated before run(). Without `rateLimit` the action is not limited.
+ * The result of run() is never cached.
+ */
+export interface ActionDef {
+    id: string
+    name: string
+    description: string
+    params: ParamDef[]
+    rateLimit?: ActionRateLimit
+    run(ctx: FetchCtx, params: WidgetParams): Promise<unknown>
+}
+
 export type ServiceAuth =
     | { kind: 'none' }
     | { kind: 'apiKey'; fields: ParamDef[] }
@@ -93,6 +119,7 @@ export interface ServiceDef {
     name: string
     auth: ServiceAuth
     widgets: WidgetDef[]
+    actions?: ActionDef[]
 }
 
 export type WidgetFetchErrorCode =

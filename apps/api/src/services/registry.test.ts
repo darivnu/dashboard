@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { __resetRegistryForTests, registry } from './registry'
-import type { ParamDef, ServiceDef, WidgetDef } from './types'
+import type { ActionDef, ParamDef, ServiceDef, WidgetDef } from './types'
 
 beforeEach(() => {
     __resetRegistryForTests()
@@ -24,6 +24,17 @@ function service(overrides: Partial<ServiceDef> = {}): ServiceDef {
         name: 'Test Service',
         auth: { kind: 'none' },
         widgets: [widget()],
+        ...overrides,
+    }
+}
+
+function action(overrides: Partial<ActionDef> = {}): ActionDef {
+    return {
+        id: 'action',
+        name: 'Action',
+        description: 'An action',
+        params: [],
+        run: async () => ({}),
         ...overrides,
     }
 }
@@ -222,5 +233,76 @@ describe('registry integer param bounds', () => {
         })
 
         expect(() => registry.register(def)).toThrow(/auth\.scopes must be an array of strings/)
+    })
+})
+
+describe('registry actions', () => {
+    test('registers a service with actions and makes them retrievable', () => {
+        const def = service({ actions: [action({ rateLimit: { max: 5, windowSeconds: 60 } })] })
+        registry.register(def)
+
+        expect(registry.getAction('service', 'action')).toBe(def.actions![0])
+    })
+
+    test('getAction is undefined for an unknown service, an unknown action and a service without actions', () => {
+        registry.register(service())
+
+        expect(registry.getAction('nope', 'action')).toBeUndefined()
+        expect(registry.getAction('service', 'action')).toBeUndefined()
+        // A widget id is not an action id.
+        expect(registry.getAction('service', 'widget')).toBeUndefined()
+    })
+
+    test('rejects duplicate action ids within a service', () => {
+        const def = service({ actions: [action(), action()] })
+
+        expect(() => registry.register(def)).toThrow('Service "service": duplicate action id "action"')
+        expect(registry.getService('service')).toBeUndefined()
+    })
+
+    test('rejects duplicate param names within an action', () => {
+        const def = service({
+            actions: [
+                action({
+                    params: [
+                        { name: 'repo', type: 'string', label: 'Repo' },
+                        { name: 'repo', type: 'integer', label: 'Repo again' },
+                    ],
+                }),
+            ],
+        })
+
+        expect(() => registry.register(def)).toThrow(/duplicate param "repo"/)
+    })
+
+    test('applies the integer bounds check to action params', () => {
+        const def = service({
+            actions: [action({ params: [{ name: 'stars', type: 'integer', label: 'Stars', min: 5, max: 1 }] })],
+        })
+
+        expect(() => registry.register(def)).toThrow(/param "stars" min \(5\) must be <= max \(1\)/)
+    })
+
+    test.each([
+        [{ max: 0, windowSeconds: 60 }, 'rateLimit.max must be an integer >= 1, got 0'],
+        [{ max: -1, windowSeconds: 60 }, 'rateLimit.max must be an integer >= 1, got -1'],
+        [{ max: 1.5, windowSeconds: 60 }, 'rateLimit.max must be an integer >= 1, got 1.5'],
+        [{ max: 5, windowSeconds: 0 }, 'rateLimit.windowSeconds must be an integer >= 1, got 0'],
+        [{ max: 5, windowSeconds: 0.5 }, 'rateLimit.windowSeconds must be an integer >= 1, got 0.5'],
+        [{ max: Number.NaN, windowSeconds: 60 }, 'rateLimit.max must be an integer >= 1, got NaN'],
+    ])('rejects rateLimit %j', (rateLimit, message) => {
+        const def = service({ actions: [action({ rateLimit })] })
+
+        expect(() => registry.register(def)).toThrow(message)
+        expect(registry.getService('service')).toBeUndefined()
+    })
+
+    test('accepts an action without rateLimit and the smallest valid one', () => {
+        registry.register(service({
+            actions: [action({ id: 'free' }), action({ id: 'tight', rateLimit: { max: 1, windowSeconds: 1 } })],
+        }))
+
+        expect(registry.getAction('service', 'free')).toBeDefined()
+        expect(registry.getAction('service', 'tight')).toBeDefined()
     })
 })

@@ -25,6 +25,7 @@ describe('registerServices', () => {
         expect(registered()).toEqual(ids(services))
         expect(registered()).not.toContain('mock')
         expect(registered()).not.toContain('mock_key')
+        expect(registry.getAction('mock', 'ping')).toBeUndefined()
     })
 
     test.each(['development', 'test', 'staging', ''])('with NODE_ENV=%j dev-only services are registered too', (nodeEnv) => {
@@ -33,6 +34,7 @@ describe('registerServices', () => {
         expect(registered()).toEqual([...ids(services), ...ids(devOnlyServices)])
         expect(registry.getWidget('mock', 'echo')).toBeDefined()
         expect(registry.getWidget('mock_key', 'secret_echo')).toBeDefined()
+        expect(registry.getAction('mock', 'ping')).toBeDefined()
     })
 
     test('calling it twice trips the registry duplicate guard', () => {
