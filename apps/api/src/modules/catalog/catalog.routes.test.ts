@@ -1,7 +1,9 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
 import { Elysia } from 'elysia'
 import { ALICE, BOB, fakeSession, loggedIn } from '../../plugins/session.fakes'
 import { errorHandler } from '../../lib/errors'
+import { __setProviderForTests } from '../../services/oauth/providers'
+import { createFakeProvider } from '../../services/oauth/providers.fakes'
 import { __resetRegistryForTests, registry } from '../../services/registry'
 import type { ServiceDef } from '../../services/types'
 import { createFakeSubscriptionsRepo } from '../subscriptions/subscriptions.fakes'
@@ -34,6 +36,10 @@ function registerStocks() {
         widgets: [],
     })
 }
+
+afterEach(() => {
+    __setProviderForTests('github', undefined) //back to the real (env-based) provider
+})
 
 beforeEach(() => {
     __resetRegistryForTests()
@@ -105,13 +111,68 @@ describe('GET /catalog', () => {
                             refresh: { default: 3600, min: 300 },
                         },
                     ],
+                    actions: [],
                     subscription: null,
                 },
             ],
         })
     })
 
-    test('exposes auth.fields for apiKey services and nothing but the kind for oauth2', async () => {
+    test('lists each service\'s actions with their params and rateLimit', async () => {
+        registry.register({
+            id: 'hub',
+            name: 'Hub',
+            auth: { kind: 'none' },
+            widgets: [],
+            actions: [
+                {
+                    id: 'star',
+                    name: 'Star',
+                    description: 'Stars a repository',
+                    params: [
+                        { name: 'repo', type: 'string', label: 'Repository', required: true },
+                        { name: 'times', type: 'integer', label: 'Times', default: 1, min: 1, max: 3 },
+                    ],
+                    rateLimit: { max: 5, windowSeconds: 60 },
+                    run: async () => ({}),
+                },
+                {
+                    id: 'wave',
+                    name: 'Wave',
+                    description: 'Waves',
+                    params: [],
+                    run: async () => ({}),
+                },
+            ],
+        })
+
+        const { body } = await getCatalog(loggedIn)
+
+        expect(body.services[0].actions).toEqual([
+            {
+                id: 'star',
+                name: 'Star',
+                description: 'Stars a repository',
+                params: [
+                    { name: 'repo', label: 'Repository', required: true, type: 'string' },
+                    { name: 'times', label: 'Times', required: false, type: 'integer', default: 1, min: 1, max: 3 },
+                ],
+                rateLimit: { max: 5, windowSeconds: 60 },
+            },
+            { id: 'wave', name: 'Wave', description: 'Waves', params: [], rateLimit: null },
+        ])
+    })
+
+    test('a service without actions lists an empty array', async () => {
+        registerStocks()
+
+        const { body } = await getCatalog(loggedIn)
+
+        expect(body.services[0].actions).toEqual([])
+    })
+
+    test('exposes auth.fields for apiKey services, and the provider and availability for oauth2', async () => {
+        __setProviderForTests('github', null)
         registry.register({
             id: 'keyed',
             name: 'Keyed',
@@ -131,7 +192,81 @@ describe('GET /catalog', () => {
             kind: 'apiKey',
             fields: [{ name: 'token', label: 'Token', required: true, type: 'string' }],
         })
-        expect(body.services[1].auth).toEqual({ kind: 'oauth2' })
+        expect(body.services[1].auth).toEqual({ kind: 'oauth2', provider: 'github', available: false })
+    })
+
+    test('an oauth2 service is available once its provider is configured, and its scopes stay private', async () => {
+        __setProviderForTests('github', createFakeProvider())
+        registry.register({
+            id: 'oauthed',
+            name: 'OAuthed',
+            auth: { kind: 'oauth2', provider: 'github', scopes: ['repo'] },
+            widgets: [],
+        })
+
+        const { body } = await getCatalog(loggedIn)
+
+        expect(body.services[0].auth).toEqual({ kind: 'oauth2', provider: 'github', available: true })
+    })
+
+    test('an integer param with bounds carries min and max; one without has neither key', async () => {
+        registry.register({
+            id: 'radio',
+            name: 'Radio',
+            auth: { kind: 'none' },
+            widgets: [
+                {
+                    id: 'map',
+                    name: 'Map',
+                    description: 'Shows stations',
+                    params: [
+                        { name: 'limit', type: 'integer', label: 'Limit', default: 200, min: 1, max: 500 },
+                        { name: 'offset', type: 'integer', label: 'Offset', min: 0 },
+                        { name: 'days', type: 'integer', label: 'Days', default: 5 },
+                        { name: 'city', type: 'string', label: 'City' },
+                    ],
+                    refresh: { default: 3600, min: 300 },
+                    fetch: async () => ({}),
+                },
+            ],
+        })
+
+        const { status, body } = await getCatalog(loggedIn)
+        const [limit, offset, days, city] = body.services[0].widgets[0].params
+
+        expect(status).toBe(200)
+        expect(limit).toEqual({
+            name: 'limit', label: 'Limit', required: false, type: 'integer', default: 200, min: 1, max: 500,
+        })
+        // Only the declared side is published; 0 is a real bound, not "absent".
+        expect(offset).toEqual({ name: 'offset', label: 'Offset', required: false, type: 'integer', min: 0 })
+        expect(offset).not.toHaveProperty('max')
+        expect(days).not.toHaveProperty('min')
+        expect(days).not.toHaveProperty('max')
+        expect(city).not.toHaveProperty('min')
+        expect(city).not.toHaveProperty('max')
+    })
+
+    test('auth.fields carry min and max too', async () => {
+        registry.register({
+            id: 'keyed',
+            name: 'Keyed',
+            auth: {
+                kind: 'apiKey',
+                fields: [
+                    { name: 'token', type: 'string', label: 'Token', required: true },
+                    { name: 'port', type: 'integer', label: 'Port', min: 1, max: 65535 },
+                ],
+            },
+            widgets: [],
+        })
+
+        const { body } = await getCatalog(loggedIn)
+        const [token, port] = body.services[0].auth.fields
+
+        expect(port).toEqual({ name: 'port', label: 'Port', required: false, type: 'integer', min: 1, max: 65535 })
+        expect(token).not.toHaveProperty('min')
+        expect(token).not.toHaveProperty('max')
     })
 
     test('lists services in registration order, each with its own widgets', async () => {

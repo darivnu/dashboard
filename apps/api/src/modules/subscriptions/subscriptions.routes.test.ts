@@ -5,10 +5,15 @@
 ** tests for the subscriptions routes (one test per checkbox of issue #22)
 */
 
-import { beforeEach, describe, expect, mock, test } from 'bun:test'
+import { fakeEnv } from '../../config/env.fakes'
+import { afterEach, beforeEach, describe, expect, mock, setSystemTime, spyOn, test } from 'bun:test'
+import { OAuth2RequestError } from 'arctic'
 import { Elysia } from 'elysia'
 import { ALICE, BOB, fakeSession, loggedIn } from '../../plugins/session.fakes'
 import { errorHandler } from '../../lib/errors'
+import { __setProviderForTests } from '../../services/oauth/providers'
+import { createFakeProvider, fakeCredentials } from '../../services/oauth/providers.fakes'
+import type { FakeOAuthProvider } from '../../services/oauth/providers.fakes'
 import { __resetRegistryForTests, registry } from '../../services/registry'
 import { fakeService } from '../dashboard/dashboard.fakes'
 import { createFakeSubscriptionsRepo } from './subscriptions.fakes'
@@ -197,5 +202,261 @@ describe('DELETE /:service', () => {
 
     test('a subscription that does not exist is 404', async () => {
         expect((await call('DELETE', '/stocks')).status).toBe(404)
+    })
+})
+
+// ---------------------------------------------------------------------------
+// OAuth: connecting an oauth2 service through browser redirects
+// ---------------------------------------------------------------------------
+
+describe('OAuth', () => {
+    // Fake tokens and code. Like SECRET above, they must never show up in a response.
+    const ACCESS = 'gho_secret_access_token'
+    const REFRESH = 'ghr_secret_refresh_token'
+    const CODE = 'secret-one-time-code'
+
+    let provider: FakeOAuthProvider
+    let errorSpy: ReturnType<typeof spyOn>
+
+    beforeEach(() => {
+        errorSpy = spyOn(console, 'error').mockImplementation(() => {}) //failed exchanges and revokes are logged on purpose
+        provider = createFakeProvider({
+            exchangeResult: fakeCredentials({ accessToken: ACCESS, refreshToken: REFRESH, scopes: ['notifications'] }),
+        })
+        __setProviderForTests('github', provider)
+        registry.register(fakeService({
+            id: 'gh',
+            name: 'GitHub',
+            auth: { kind: 'oauth2', provider: 'github', scopes: ['notifications'] },
+        }))
+    })
+
+    afterEach(() => {
+        __setProviderForTests('github', undefined)
+        setSystemTime() //back to the real clock
+        errorSpy.mockRestore()
+    })
+
+    // Sends a browser-like GET with the given cookies, and returns what a browser would look at:
+    // the status, where it is sent next, and the cookies it is told to store.
+    async function navigate(path: string, cookies: Record<string, string> = {}) {
+        const cookie = Object.entries(cookies).map(([name, value]) => `${name}=${value}`).join('; ')
+        const response = await app.handle(new Request(`http://localhost/subscriptions${path}`, {
+            headers: cookie ? { cookie } : {},
+        }))
+        return {
+            status: response.status,
+            location: response.headers.get('location') ?? '',
+            setCookies: response.headers.getSetCookie(),
+            text: await response.text(),
+        }
+    }
+
+    // The value of the oauth_pending cookie in a response, or undefined
+    function pendingCookie(setCookies: string[]): string | undefined {
+        const line = setCookies.find((c) => c.startsWith('oauth_pending='))
+        return line ? decodeURIComponent(line.split(';')[0]!.slice('oauth_pending='.length)) : undefined
+    }
+
+    function dashboardRedirect(param: 'connected' | 'oauth_error', value: string) {
+        return `${fakeEnv.webUrl}/dashboard?${param}=${value}`
+    }
+
+    // Runs /authorize as Alice and gives back what the callback needs
+    async function startFlow() {
+        const started = await navigate('/gh/authorize', { session: 'any-token' })
+        const state = new URL(started.location).searchParams.get('state')!
+        return { pending: pendingCookie(started.setCookies)!, state }
+    }
+
+    function callback(query: string, cookies: Record<string, string>) {
+        return navigate(`/oauth/github/callback?${query}`, cookies)
+    }
+
+    describe('GET /:service/authorize', () => {
+        test('sends the browser to the provider with a state and sets the pending cookie', async () => {
+            const { status, location, setCookies } = await navigate('/gh/authorize', { session: 'any-token' })
+
+            expect(status).toBe(302)
+            const url = new URL(location)
+            expect(url.origin).toBe('https://provider.test')
+            expect(url.searchParams.get('state')).toBeTruthy()
+            expect(url.searchParams.get('scope')).toBe('notifications')
+
+            const line = setCookies.find((c) => c.startsWith('oauth_pending='))!
+            expect(line).toContain('HttpOnly')
+            expect(line).toContain('Path=/api/subscriptions')
+            expect(line).toContain('Max-Age=600')
+            expect(line).toMatch(/SameSite=Lax/i)
+        })
+
+        test.each([
+            ['no session', '/gh/authorize', false, 'unauthorized'],
+            ['an unknown service', '/nope/authorize', true, 'unknown_service'],
+            ['an apiKey service', '/stocks/authorize', true, 'not_oauth'],
+        ] as const)('%s redirects with an error', async (_label, path, withSession, code) => {
+            const { status, location, setCookies } = await navigate(path, withSession ? { session: 'any-token' } : {})
+
+            expect(status).toBe(302)
+            expect(location).toBe(dashboardRedirect('oauth_error', code))
+            expect(pendingCookie(setCookies)).toBeUndefined()
+        })
+
+        test('an unconfigured provider redirects with not_configured', async () => {
+            __setProviderForTests('github', null)
+
+            const { location } = await navigate('/gh/authorize', { session: 'any-token' })
+
+            expect(location).toBe(dashboardRedirect('oauth_error', 'not_configured'))
+        })
+    })
+
+    describe('GET /oauth/:provider/callback', () => {
+        test('stores the tokens for the session user and redirects with connected', async () => {
+            const { pending, state } = await startFlow()
+
+            const response = await callback(`code=${CODE}&state=${state}`, { session: 'any-token', oauth_pending: pending })
+
+            expect(response.status).toBe(302)
+            expect(response.location).toBe(dashboardRedirect('connected', 'gh'))
+            expect(provider.calls.exchange).toEqual([CODE])
+            expect(repo.rows).toHaveLength(1)
+            expect(repo.rows[0]).toMatchObject({ userId: ALICE.id, serviceId: 'gh', status: 'active' })
+            expect(repo.rows[0]!.credentials).toMatchObject({ accessToken: ACCESS, refreshToken: REFRESH })
+            expect(pendingCookie(response.setCookies)).toBe('') //cleared
+        })
+
+        test('reconnecting a needs_reauth subscription makes it active again', async () => {
+            await repo.upsert(ALICE.id, 'gh', { ...fakeCredentials({ accessToken: 'dead-token' }) })
+            await repo.setStatus(ALICE.id, 'gh', 'needs_reauth')
+            const { pending, state } = await startFlow()
+
+            await callback(`code=${CODE}&state=${state}`, { session: 'any-token', oauth_pending: pending })
+
+            expect(repo.rows).toHaveLength(1)
+            expect(repo.rows[0]!.status).toBe('active')
+            expect(repo.rows[0]!.credentials).toMatchObject({ accessToken: ACCESS })
+        })
+
+        // Each case breaks one thing in an otherwise valid callback
+        interface Failure {
+            label: string
+            code: string
+            query?: (state: string) => string //defaults to a valid code + state
+            noPendingCookie?: boolean
+            setup?: () => void //runs between /authorize and the callback
+        }
+        const failures: Failure[] = [
+            { label: 'a missing pending cookie', code: 'invalid_state', noPendingCookie: true },
+            { label: 'a state mismatch', code: 'invalid_state', query: () => `code=${CODE}&state=forged` },
+            { label: 'a missing state', code: 'invalid_state', query: () => `code=${CODE}` },
+            {
+                label: 'an expired flow',
+                code: 'expired',
+                setup: () => setSystemTime(new Date(Date.now() + 11 * 60 * 1000)),
+            },
+            { label: 'the user refusing', code: 'denied', query: (state) => `error=access_denied&state=${state}` },
+            { label: 'another provider error', code: 'provider_error', query: (state) => `error=server_error&state=${state}` },
+            { label: 'no session', code: 'unauthorized', setup: () => { fakeSession.user = null } },
+            { label: 'another user\'s session', code: 'session_mismatch', setup: () => { fakeSession.user = BOB } },
+            {
+                label: 'a failed code exchange',
+                code: 'exchange_failed',
+                setup: () => { provider.exchangeError = new OAuth2RequestError('bad_verification_code', null, null, null) },
+            },
+        ]
+
+        for (const failure of failures) {
+            test(`${failure.label} redirects with ${failure.code} and stores nothing`, async () => {
+                const { pending, state } = await startFlow()
+                failure.setup?.()
+
+                const query = failure.query ? failure.query(state) : `code=${CODE}&state=${state}`
+                const cookies: Record<string, string> = { session: 'any-token' }
+                if (!failure.noPendingCookie)
+                    cookies.oauth_pending = pending
+
+                const response = await callback(query, cookies)
+
+                expect(response.status).toBe(302)
+                expect(response.location).toBe(dashboardRedirect('oauth_error', failure.code))
+                expect(repo.rows).toHaveLength(0)
+                expect(pendingCookie(response.setCookies)).toBe('') //cleared on every outcome
+            })
+        }
+
+        test('a pending cookie we did not encrypt is invalid_state', async () => {
+            const { state } = await startFlow()
+
+            const { location } = await callback(`code=${CODE}&state=${state}`, { session: 'any-token', oauth_pending: 'v1.forged.cookie.value' })
+
+            expect(location).toBe(dashboardRedirect('oauth_error', 'invalid_state'))
+        })
+
+        test('a callback for another provider than the service uses is invalid_state', async () => {
+            const { pending, state } = await startFlow()
+
+            const { location } = await navigate(`/oauth/myspace/callback?code=${CODE}&state=${state}`, { session: 'any-token', oauth_pending: pending })
+
+            expect(location).toBe(dashboardRedirect('oauth_error', 'invalid_state'))
+            expect(repo.rows).toHaveLength(0)
+        })
+
+        test('no response ever contains the tokens or the code', async () => {
+            const { pending, state } = await startFlow()
+            const responses = [
+                await callback(`code=${CODE}&state=${state}`, { session: 'any-token', oauth_pending: pending }),
+                await callback(`code=${CODE}&state=${state}`, { session: 'any-token', oauth_pending: pending }), //replayed
+                await call('GET', '/'),
+            ]
+
+            for (const response of responses) {
+                const everything = JSON.stringify(response)
+                expect(everything).not.toContain(ACCESS)
+                expect(everything).not.toContain(REFRESH)
+                expect(everything).not.toContain(CODE)
+            }
+        })
+
+        test('a failed exchange logs neither the code nor the provider message', async () => {
+            const { pending, state } = await startFlow()
+            provider.exchangeError = new OAuth2RequestError('bad_verification_code', `code ${CODE} is bad`, null, null)
+
+            await callback(`code=${CODE}&state=${state}`, { session: 'any-token', oauth_pending: pending })
+
+            expect(errorSpy).toHaveBeenCalled()
+            expect(JSON.stringify(errorSpy.mock.calls)).not.toContain(CODE)
+        })
+    })
+
+    describe('DELETE /:service', () => {
+        test('revokes the token at the provider after deleting the row', async () => {
+            await repo.upsert(ALICE.id, 'gh', { ...fakeCredentials({ accessToken: ACCESS }) })
+
+            const { status } = await call('DELETE', '/gh')
+
+            expect(status).toBe(200)
+            expect(repo.rows).toHaveLength(0)
+            expect(provider.calls.revoke).toEqual([ACCESS])
+        })
+
+        test('still answers 200 when the provider fails to revoke', async () => {
+            await repo.upsert(ALICE.id, 'gh', { ...fakeCredentials({ accessToken: ACCESS }) })
+            provider.revokeError = new TypeError('fetch failed')
+
+            const { status, body } = await call('DELETE', '/gh')
+
+            expect(status).toBe(200)
+            expect(body).toEqual({ ok: true })
+            expect(repo.rows).toHaveLength(0)
+        })
+
+        test('another user\'s subscription is not revoked', async () => {
+            await repo.upsert(ALICE.id, 'gh', { ...fakeCredentials({ accessToken: ACCESS }) })
+            fakeSession.user = BOB
+
+            expect((await call('DELETE', '/gh')).status).toBe(404)
+            expect(provider.calls.revoke).toHaveLength(0)
+        })
     })
 })

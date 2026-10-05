@@ -2,3 +2,7 @@ node_modules
 dist
 .env
 bun.lockb
+CONCEPTS.md
+.vercel
+.env.*
+!.env.example

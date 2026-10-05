@@ -1,8 +1,9 @@
 import { Elysia, t } from 'elysia'
 import { Type } from '@sinclair/typebox'
 import { auth } from '../../plugins/session'
+import { getProvider } from '../../services/oauth/providers'
 import { registry } from '../../services/registry'
-import type { ParamDef, ServiceAuth, ServiceDef, WidgetDef } from '../../services/types'
+import type { ActionDef, ParamDef, ServiceAuth, ServiceDef, WidgetDef } from '../../services/types'
 //import { SubscriptionStatus } from '../subscriptions/subscriptions.repo'
 import { subscriptionsRepo, type SubscriptionStatus } from '../subscriptions/subscriptions.repo'
 
@@ -30,6 +31,14 @@ const paramSchema = t.Union([
         ...paramBase,
         type: t.Literal('integer'),
         default: t.Optional(Type.Integer({ description: 'Value stored when the param is omitted' })),
+        min: t.Optional(Type.Integer({
+            description: 'Lowest value accepted, inclusive; a lower one is rejected with 400. Absent when the param has no lower bound',
+            examples: [1],
+        })),
+        max: t.Optional(Type.Integer({
+            description: 'Highest value accepted, inclusive; a higher one is rejected with 400. Absent when the param has no upper bound',
+            examples: [500],
+        })),
     }),
 ])
 
@@ -41,7 +50,13 @@ const authSchema = t.Union([
             description: 'Credentials the user must provide to subscribe to this service',
         }),
     }),
-    t.Object({ kind: t.Literal('oauth2') }),
+    t.Object({
+        kind: t.Literal('oauth2'),
+        provider: t.String({ description: 'OAuth provider the user connects to', examples: ['github'] }),
+        available: t.Boolean({
+            description: 'False when the server has no credentials for this provider: connecting is impossible for now',
+        }),
+    }),
 ])
 
 const widgetSchema = t.Object({
@@ -61,6 +76,27 @@ const widgetSchema = t.Object({
     }),
 })
 
+const rateLimitSchema = t.Nullable(
+    t.Object({
+        max: Type.Integer({
+            description: 'Calls allowed per window, per user and per action',
+            examples: [5],
+        }),
+        windowSeconds: Type.Integer({
+            description: 'Length of the window in seconds; a call over the limit is rejected with 429 and a Retry-After header',
+            examples: [60],
+        }),
+    }, { description: 'Limit on how often the current user may run this action; null when it is not limited' })
+)
+
+const actionSchema = t.Object({
+    id: t.String({ description: 'Used in POST /api/services/{serviceId}/actions/{actionId}', examples: ['star'] }),
+    name: t.String({ examples: ['Star'] }),
+    description: t.String(),
+    params: t.Array(paramSchema, { description: 'What to send in the `params` object of the request body' }),
+    rateLimit: rateLimitSchema,
+})
+
 const subscriptionStatusSchema = t.Nullable(//why is it nullable? because the user may not be subscribed to this service
     t.Object({
         status: t.Union([t.Literal('active'), t.Literal('needs_reauth'), t.Literal('revoked')]),
@@ -73,11 +109,14 @@ const serviceSchema = t.Object({
     auth: authSchema,
     subscription: subscriptionStatusSchema,
     widgets: t.Array(widgetSchema),
+    actions: t.Array(actionSchema, {
+        description: 'Operations the user can trigger on demand; empty when the service has none',
+    }),
 })
 
 const catalogResponse = t.Object({
     services: t.Array(serviceSchema),
-}, { description: 'Every registered service with its widgets' })
+}, { description: 'Every registered service with its widgets and actions' })
 
 const errorResponse = t.Object({
     error: t.String({ examples: ['UNAUTHORIZED'] }),
@@ -94,12 +133,18 @@ function toParam(param: ParamDef) {
     if (param.type === 'string') {
         return { ...base, type: param.type, default: param.default }
     }
-    return { ...base, type: param.type, default: param.default }
+    // Undeclared min / max are undefined here and drop out of the JSON, the
+    // same way an undeclared default does.
+    return { ...base, type: param.type, default: param.default, min: param.min, max: param.max }
 }
 
 function toAuth(serviceAuth: ServiceAuth) {
     if (serviceAuth.kind === 'apiKey') {
         return { kind: serviceAuth.kind, fields: serviceAuth.fields.map(toParam) }
+    }
+    if (serviceAuth.kind === 'oauth2') {
+        //never the scopes or anything else from the definition: just what the Connect button needs
+        return { kind: serviceAuth.kind, provider: serviceAuth.provider, available: getProvider(serviceAuth.provider) !== null }
     }
     return { kind: serviceAuth.kind }
 }
@@ -114,12 +159,25 @@ function toWidget(widget: WidgetDef) {
     }
 }
 
+function toAction(action: ActionDef) {
+    return {
+        id: action.id,
+        name: action.name,
+        description: action.description,
+        params: action.params.map(toParam),
+        rateLimit: action.rateLimit
+            ? { max: action.rateLimit.max, windowSeconds: action.rateLimit.windowSeconds }
+            : null, //null when the action is not limited
+    }
+}
+
 function toService(service: ServiceDef, status: SubscriptionStatus | undefined) {
     return {
         id: service.id,
         name: service.name,
         auth: toAuth(service.auth),
         widgets: service.widgets.map(toWidget),
+        actions: (service.actions ?? []).map(toAction),
         subscription: status ? { status } : null, //null when the user is not subscribed (ternary op)
     }
 }
@@ -149,8 +207,8 @@ export const catalogRoutes = new Elysia({
             401: 'catalog.error',
         },
         detail: {
-            summary: 'List available services and widgets',
-            description: 'Everything a client needs to build a widget configuration form: each service with its auth kind, and each widget with its params and refresh bounds. Derived from the service \
+            summary: 'List available services, widgets and actions',
+            description: 'Everything a client needs to build a widget configuration form and to offer a service\'s actions: each service with its auth kind, each widget with its params and refresh bounds, and each action with its params and rate limit. Derived from the service \
             registry at request time, so a newly registered service appears without any change here.',
         },
     })

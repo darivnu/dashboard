@@ -9,23 +9,37 @@
 // requests from the frontend, checks that they look OK, hands them to the
 // service (the "chef" that knows the rules) and sends back the answer.
 //
-// The three routes (all under /api/subscriptions, because app.ts adds /api):
-//   GET    /api/subscriptions            → list my subscriptions
-//   POST   /api/subscriptions/:service   → subscribe (or replace my API key)
-//   DELETE /api/subscriptions/:service   → unsubscribe
+// The routes (all under /api/subscriptions, because app.ts adds /api):
+//   GET    /api/subscriptions                          → list my subscriptions
+//   POST   /api/subscriptions/:service                 → subscribe (or replace my API key)
+//   DELETE /api/subscriptions/:service                 → unsubscribe
+//   GET    /api/subscriptions/:service/authorize       → start connecting an oauth2 service
+//   GET    /api/subscriptions/oauth/:provider/callback → the provider sends the user back here
+//
+// The two OAuth routes are not called with fetch: the browser NAVIGATES to them
+// (the frontend sets window.location). That's why they never answer JSON, only
+// redirects, and why they don't use `auth: true` (it would show a raw JSON 401).
 
 // `Elysia` is the web framework, `t` is how Elysia describes the shape of data
 // (a "schema"). Elysia checks every request against these schemas and answers
 // 400 by itself when something does not match, so we don't have to.
 import { Elysia, t } from 'elysia'
-import { auth } from '../../plugins/session' //login check; gives us `user` in the handlers
+import { env } from '../../config/env'
+import {
+    auth, //login check; gives us `user` in the handlers
+    loadUser,
+    OAUTH_PENDING_COOKIE,
+    oauthPendingCookieOptions,
+    SESSION_COOKIE,
+} from '../../plugins/session'
+import { getProvider } from '../../services/oauth/providers'
 import { subscriptionsRepo } from './subscriptions.repo'
-import { createSubscriptionsService } from './subscriptions.service'
+import { createSubscriptionsService, OAuthFlowError } from './subscriptions.service'
 import type { ServiceSubscriptionInstance } from './subscriptions.repo' //`import type` = only used for TypeScript types, removed when the code runs
 
 // Build the service once, giving it the real database repo. (In tests, the repo
 // is swapped for a fake one that stores rows in an array.)
-const service = createSubscriptionsService(subscriptionsRepo)
+const service = createSubscriptionsService(subscriptionsRepo, getProvider)
 
 // ---------------------------------------------------------------------------
 // Schemas: what the data going in and out must look like
@@ -72,6 +86,19 @@ const credentialsBody = t.Record(
     },
 )
 
+// The `:provider` part of the callback URL. Checked against the known providers in the service.
+const providerParams = t.Object({
+    provider: t.String({ maxLength: 64, description: 'OAuth provider id', examples: ['github'] }),
+})
+
+// What the provider puts in the callback URL. All optional: a missing one is
+// an error we redirect for, not a 400 JSON page.
+const callbackQuery = t.Object({
+    code: t.Optional(t.String({ description: 'One-time code to trade for a token' })),
+    state: t.Optional(t.String({ description: 'Must match the state sent in /authorize' })),
+    error: t.Optional(t.String({ description: 'Set when the user refused or the provider failed', examples: ['access_denied'] })),
+})
+
 // DELETE answers { ok: true }
 const okSchema = t.Object({ ok: t.Literal(true) })
 
@@ -89,6 +116,22 @@ const errorSchema = t.Object({
 function toSubscription(row: ServiceSubscriptionInstance) {
     const { credentials, id, userId, ...rest } = row //autocmplete put this, if true, then ballers
     return rest
+}
+
+// Where the OAuth routes send the browser back to: the dashboard page of the frontend
+function dashboardUrl(param: 'connected' | 'oauth_error', value: string): string {
+    const url = new URL('/dashboard', env.webUrl)
+    url.searchParams.set(param, value)
+    return url.toString()
+}
+
+// Anything that isn't an OAuthFlowError is a bug: log its name only (it could
+// hold a code or a token) and show the user a generic error
+function oauthErrorCode(error: unknown, route: string): string {
+    if (error instanceof OAuthFlowError)
+        return error.code
+    console.error(`Unexpected error in ${route}: ${error instanceof Error ? error.name : typeof error}`)
+    return 'provider_error'
 }
 
 // ---------------------------------------------------------------------------
@@ -170,5 +213,52 @@ export const subscriptionsRoutes = new Elysia(
         detail: {
             summary: 'Unsubscribe from a service',
             description: 'Deletes the subscription and its credentials. A subscription that does not exist and one that belongs to someone else both answer 404.',
+        },
+    })
+
+    // GET /subscriptions/:service/authorize: start connecting an oauth2 service.
+    // Remembers the flow in the encrypted oauth_pending cookie, then sends the
+    // browser to the provider's consent page.
+    .get('/:service/authorize', async ({ params, cookie, redirect }) => {
+        try {
+            const user = await loadUser(cookie[SESSION_COOKIE].value)
+            const { url, pending } = service.startOAuth(user?.id ?? null, params.service)
+            cookie[OAUTH_PENDING_COOKIE].set({ ...oauthPendingCookieOptions(), value: pending })
+            return redirect(url.toString())
+        } catch (error) {
+            return redirect(dashboardUrl('oauth_error', oauthErrorCode(error, 'authorize')))
+        }
+    }, {
+        params: serviceParams,
+        detail: {
+            summary: 'Start connecting an oauth2 service (browser navigation)',
+            description: 'Redirects to the provider\'s consent page. Every failure (not logged in, unknown service, not oauth2, provider not configured) redirects to WEB_URL/dashboard?oauth_error=<code> instead of answering JSON.',
+        },
+    })
+
+    // GET /subscriptions/oauth/:provider/callback: the provider sends the user back here.
+    // The pending cookie is cleared first, whatever happens next: a flow can only be finished once.
+    .get('/oauth/:provider/callback', async ({ params, query, cookie, redirect }) => {
+        const pending = cookie[OAUTH_PENDING_COOKIE].value
+        cookie[OAUTH_PENDING_COOKIE].set({ ...oauthPendingCookieOptions(), value: '', maxAge: 0, expires: new Date(0) })
+
+        try {
+            const user = await loadUser(cookie[SESSION_COOKIE].value)
+            const serviceId = await service.finishOAuth({
+                pending: typeof pending === 'string' ? pending : undefined,
+                providerId: params.provider,
+                query,
+                userId: user?.id ?? null,
+            })
+            return redirect(dashboardUrl('connected', serviceId))
+        } catch (error) {
+            return redirect(dashboardUrl('oauth_error', oauthErrorCode(error, 'callback')))
+        }
+    }, {
+        params: providerParams,
+        query: callbackQuery,
+        detail: {
+            summary: 'OAuth callback (called by the provider, not by clients)',
+            description: 'Checks the state against the oauth_pending cookie, trades the code for tokens and stores them encrypted. Redirects to WEB_URL/dashboard?connected=<service> or ?oauth_error=<code>.',
         },
     })
