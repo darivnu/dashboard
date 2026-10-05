@@ -7,6 +7,7 @@ import {
     type WidgetViewProps,
 } from './widgetRegistry'
 import AdviceWidget from './widgets/AdviceWidget'
+import FreeGames from './widgets/epic-games/free-games/FreeGames'
 import EchoWidget from './widgets/mock/echo/EchoWidget'
 import StationMap from './widgets/radio-browser/station-map/StationMap'
 
@@ -100,6 +101,19 @@ describe('getWidgetEntry', () => {
         expect(() => entry.parse({ stations: 'many' })).toThrow()
     })
 
+    test('the free games widget is registered 4 x 6, at least 3 x 4', () => {
+        const entry = getWidgetEntry('epic_games', 'free_games')
+        if ('legacy' in entry) throw new Error('expected a widget-base entry')
+        expect(entry.component).toBe(FreeGames)
+        expect(entry.defaultSize).toEqual({ w: 4, h: 6 })
+        expect(entry.minSize).toEqual({ w: 3, h: 4 })
+        expect(entry.parse({ current: [], upcoming: [] })).toEqual({
+            current: [],
+            upcoming: [],
+        })
+        expect(() => entry.parse({ current: 'none', upcoming: [] })).toThrow()
+    })
+
     test('every entry has a default size no smaller than its minimum', () => {
         for (const [service, widget] of [
             ['advice_slip', 'random_advice'],
@@ -108,6 +122,7 @@ describe('getWidgetEntry', () => {
             ['radio_browser', 'station_map'],
             ['random_fox', 'random_fox'],
             ['nasa', 'apod'],
+            ['epic_games', 'free_games'],
             ['nope', 'nothing'],
         ]) {
             const { defaultSize, minSize } = getWidgetEntry(service, widget)

@@ -1,6 +1,8 @@
 import type { ComponentType } from 'react'
 import type { Instance, InstanceParams } from './dashboard/types'
 import AdviceWidget from './widgets/AdviceWidget'
+import FreeGames from './widgets/epic-games/free-games/FreeGames'
+import { parseFreeGames } from './widgets/epic-games/free-games/parse'
 import NotificationsWidget from './widgets/github/notifications/NotificationsWidget'
 import { parseNotifications } from './widgets/github/notifications/parse'
 import EchoWidget from './widgets/mock/echo/EchoWidget'
@@ -107,6 +109,13 @@ const neo = defineWidget({
     minSize: { w: 3, h: 4 },
 })
 
+const freeGames = defineWidget({
+    component: FreeGames,
+    parse: parseFreeGames,
+    defaultSize: { w: 4, h: 6 },
+    minSize: { w: 3, h: 4 },
+})
+
 const githubNotifications = defineWidget({
     component: NotificationsWidget,
     parse: parseNotifications,
@@ -128,6 +137,7 @@ const entries: Record<string, WidgetEntry> = {
     'nasa/apod': apod,
     'nasa/neows': neo,
     'github/notifications': githubNotifications,
+    'epic_games/free_games': freeGames,
 }
 
 export function getWidgetEntry(
