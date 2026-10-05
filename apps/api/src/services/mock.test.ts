@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { createTtlCache } from '../lib/cache'
+import { createFixedWindowLimiter } from '../lib/rate-limit'
 import { AppError } from '../lib/errors'
+import { createActionsService, RateLimitedError } from '../modules/actions/actions.service'
 import { createFakeRepo, noOAuthTokens } from '../modules/dashboard/dashboard.fakes'
 import { createDashboardService } from '../modules/dashboard/dashboard.service'
 import { createDataService } from '../modules/dashboard/data.service'
@@ -173,5 +175,48 @@ describe('in production', () => {
             await expect(attempt).rejects.toBeInstanceOf(AppError)
             await expect(attempt).rejects.toMatchObject({ status: 400, code: 'UNKNOWN_WIDGET' })
         }
+    })
+})
+
+describe('mock / ping through the actions service', () => {
+    // A fresh limiter per call site, so tests do not share ping's 5-per-minute budget.
+    const actions = () => createActionsService({ http: fakeHttp, limiter: createFixedWindowLimiter() })
+
+    test('returns the message with a timestamp', async () => {
+        const result = await actions().runAction(ALICE, 'mock', 'ping', { message: 'hello' })
+
+        expect(result).toMatchObject({ ok: true, data: { message: 'hello' } })
+        expect(result.ok && typeof (result.data as { timestamp: unknown }).timestamp).toBe('string')
+    })
+
+    test('a missing message is 400 INVALID_PARAMS', async () => {
+        await expect(actions().runAction(ALICE, 'mock', 'ping', {})).rejects.toMatchObject({
+            status: 400,
+            code: 'INVALID_PARAMS',
+        })
+    })
+
+    test.each(['needs_reauth', 'rate_limited', 'upstream_error'] as const)('fail=%s answers { ok: false, code }', async (code) => {
+        expect(await actions().runAction(ALICE, 'mock', 'ping', { message: 'x', fail: code })).toEqual({ ok: false, code })
+    })
+
+    test('fail=invalid_config is 400 INVALID_PARAMS', async () => {
+        await expect(actions().runAction(ALICE, 'mock', 'ping', { message: 'x', fail: 'invalid_config' })).rejects.toMatchObject({
+            status: 400,
+            code: 'INVALID_PARAMS',
+        })
+    })
+
+    test('an unknown fail value is ignored', async () => {
+        expect(await actions().runAction(ALICE, 'mock', 'ping', { message: 'x', fail: 'typo' })).toMatchObject({ ok: true })
+    })
+
+    test('allows 5 calls per 60 s: the 6th is limited', async () => {
+        const service = actions()
+        for (let i = 0; i < 5; i += 1) {
+            expect(await service.runAction(ALICE, 'mock', 'ping', { message: 'x' })).toMatchObject({ ok: true })
+        }
+
+        await expect(service.runAction(ALICE, 'mock', 'ping', { message: 'x' })).rejects.toBeInstanceOf(RateLimitedError)
     })
 })

@@ -111,10 +111,64 @@ describe('GET /catalog', () => {
                             refresh: { default: 3600, min: 300 },
                         },
                     ],
+                    actions: [],
                     subscription: null,
                 },
             ],
         })
+    })
+
+    test('lists each service\'s actions with their params and rateLimit', async () => {
+        registry.register({
+            id: 'hub',
+            name: 'Hub',
+            auth: { kind: 'none' },
+            widgets: [],
+            actions: [
+                {
+                    id: 'star',
+                    name: 'Star',
+                    description: 'Stars a repository',
+                    params: [
+                        { name: 'repo', type: 'string', label: 'Repository', required: true },
+                        { name: 'times', type: 'integer', label: 'Times', default: 1, min: 1, max: 3 },
+                    ],
+                    rateLimit: { max: 5, windowSeconds: 60 },
+                    run: async () => ({}),
+                },
+                {
+                    id: 'wave',
+                    name: 'Wave',
+                    description: 'Waves',
+                    params: [],
+                    run: async () => ({}),
+                },
+            ],
+        })
+
+        const { body } = await getCatalog(loggedIn)
+
+        expect(body.services[0].actions).toEqual([
+            {
+                id: 'star',
+                name: 'Star',
+                description: 'Stars a repository',
+                params: [
+                    { name: 'repo', label: 'Repository', required: true, type: 'string' },
+                    { name: 'times', label: 'Times', required: false, type: 'integer', default: 1, min: 1, max: 3 },
+                ],
+                rateLimit: { max: 5, windowSeconds: 60 },
+            },
+            { id: 'wave', name: 'Wave', description: 'Waves', params: [], rateLimit: null },
+        ])
+    })
+
+    test('a service without actions lists an empty array', async () => {
+        registerStocks()
+
+        const { body } = await getCatalog(loggedIn)
+
+        expect(body.services[0].actions).toEqual([])
     })
 
     test('exposes auth.fields for apiKey services, and the provider and availability for oauth2', async () => {
