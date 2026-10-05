@@ -44,6 +44,7 @@ bunx biome check --write .    # Biome: apply every safe fix
 - [`apps/web/README.md`](apps/web/README.md) — frontend: structure, widget base, how to add a widget
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — overall architecture and the service/widget registry
 - [`docs/BACKEND.md`](docs/BACKEND.md) — backend modules and routes
+- [`docs/ADDING_A_SERVICE.md`](docs/ADDING_A_SERVICE.md) — how to add a service or widget, a GitHub one, or a new OAuth provider
 
 ## Email (Brevo)
 
