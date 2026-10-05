@@ -33,13 +33,25 @@ function fail(): never {
     throw new Error('Unexpected GitHub notifications data')
 }
 
+// The Eden client turns every ISO date string in a response into a Date, so
+// "2026-10-04T16:43:00Z" reaches us as a Date. Bring it back to a string.
+function parseDate(value: unknown): string {
+    if (value instanceof Date) {
+        return Number.isNaN(value.getTime()) ? '' : value.toISOString()
+    }
+    if (typeof value === 'string') {
+        return value
+    }
+    return fail()
+}
+
 function parseNotification(raw: unknown): Notification {
     if (typeof raw !== 'object' || raw === null) {
         return fail()
     }
     const { title, repo, repoUrl, url, type, reason, updatedAt } =
         raw as Record<string, unknown>
-    const strings = [title, repo, repoUrl, url, type, reason, updatedAt]
+    const strings = [title, repo, repoUrl, url, type, reason]
     if (!strings.every((value) => typeof value === 'string')) {
         return fail()
     }
@@ -50,7 +62,7 @@ function parseNotification(raw: unknown): Notification {
         url: url as string,
         type: type as string,
         reason: reason as string,
-        updatedAt: updatedAt as string,
+        updatedAt: parseDate(updatedAt),
     }
 }
 
