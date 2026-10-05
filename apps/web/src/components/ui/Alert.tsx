@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
 
-type Variant = 'error' | 'info'
+type Variant = 'error' | 'info' | 'success'
 
 const variants: Record<Variant, string> = {
     error: 'bg-red-950/50 border-red-800 text-red-200',
     info: 'bg-gray-700/50 border-gray-600 text-gray-300',
+    success: 'bg-emerald-950/50 border-emerald-800 text-emerald-200',
 }
 
 type Props = {
