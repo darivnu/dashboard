@@ -199,4 +199,28 @@ describe('registry integer param bounds', () => {
             'service auth: param "port" min (10) must be <= max (1)',
         )
     })
+
+    test('accepts an oauth2 service with a known provider', () => {
+        const def = service({ auth: { kind: 'oauth2', provider: 'github', scopes: ['notifications'] } })
+
+        registry.register(def)
+
+        expect(registry.getService('service')).toBe(def)
+    })
+
+    test('rejects an oauth2 service with an unknown provider', () => {
+        const def = service({
+            auth: { kind: 'oauth2', provider: 'myspace' as never, scopes: [] },
+        })
+
+        expect(() => registry.register(def)).toThrow('Service "service": unknown OAuth provider "myspace"')
+    })
+
+    test('rejects oauth2 scopes that are not strings', () => {
+        const def = service({
+            auth: { kind: 'oauth2', provider: 'github', scopes: [42] as never },
+        })
+
+        expect(() => registry.register(def)).toThrow(/auth\.scopes must be an array of strings/)
+    })
 })

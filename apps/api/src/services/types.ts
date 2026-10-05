@@ -1,3 +1,5 @@
+import type { OAuthProviderId } from './oauth/ids'
+
 interface ParamDefBase {
     name: string
     label: string
@@ -40,8 +42,7 @@ export interface HttpClient {
 /**
  * Context for fetching widget data.
  *
- * Additive by design: a later phase adds `getAccessToken()` (for oauth2
- * services) as a further optional field, without breaking this shape.
+ * Additive by design: each auth kind only adds the optional field it needs.
  */
 export interface FetchCtx {
     http: HttpClient
@@ -50,6 +51,27 @@ export interface FetchCtx {
      * in "auth.fields". Absent for "auth.kind === 'none'".
      */
     credentials?: Record<string, string | number> //the question mark is because this is only present for apiKey services, not oauth2 or none
+    /**
+     * Returns a valid access token for the user's account at the provider,
+     * refreshing it first when it is about to expire. Only present for
+     * "auth.kind === 'oauth2'". Throws a WidgetFetchError ('needs_reauth' when
+     * the user has to connect again), so a widget can just let it bubble up.
+     */
+    getAccessToken?: () => Promise<string>
+}
+
+/**
+ * What an oauth2 subscription keeps in its (encrypted) `credentials` column.
+ * `expiresAt` is an ISO date, or null for tokens that never expire (GitHub
+ * OAuth App tokens). `refreshToken` is null when the provider gave none.
+ * A `type` rather than an `interface` so it fits the column's generic
+ * `Record<string, unknown>` (interfaces have no implicit index signature).
+ */
+export type OAuthCredentials = {
+    accessToken: string
+    refreshToken: string | null
+    expiresAt: string | null
+    scopes: string[]
 }
 
 export interface WidgetDef {
@@ -64,7 +86,7 @@ export interface WidgetDef {
 export type ServiceAuth =
     | { kind: 'none' }
     | { kind: 'apiKey'; fields: ParamDef[] }
-    | { kind: 'oauth2'; provider: string; scopes: string[] }
+    | { kind: 'oauth2'; provider: OAuthProviderId; scopes: string[] }
 
 export interface ServiceDef {
     id: string

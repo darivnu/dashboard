@@ -84,3 +84,10 @@ export function fakeService(overrides: Partial<ServiceDef> = {}): ServiceDef {
         ...overrides,
     }
 }
+
+/** For data-service tests without oauth2 services: asking for a token is a test bug. */
+export const noOAuthTokens = {
+    getAccessToken: async (): Promise<string> => {
+        throw new Error('this test has no oauth2 service')
+    },
+}

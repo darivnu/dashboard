@@ -3,6 +3,8 @@ import type { Instance, InstanceParams } from './dashboard/types'
 import AdviceWidget from './widgets/AdviceWidget'
 import FreeGames from './widgets/epic-games/free-games/FreeGames'
 import { parseFreeGames } from './widgets/epic-games/free-games/parse'
+import NotificationsWidget from './widgets/github/notifications/NotificationsWidget'
+import { parseNotifications } from './widgets/github/notifications/parse'
 import EchoWidget from './widgets/mock/echo/EchoWidget'
 import { parseEcho } from './widgets/mock/echo/parse'
 import ApodWidget from './widgets/nasa/apod/ApodWidget'
@@ -114,6 +116,13 @@ const freeGames = defineWidget({
     minSize: { w: 3, h: 4 },
 })
 
+const githubNotifications = defineWidget({
+    component: NotificationsWidget,
+    parse: parseNotifications,
+    defaultSize: { w: 4, h: 5 },
+    minSize: { w: 3, h: 3 },
+})
+
 // El mapa: cada clave es "serviceId/widgetId"
 const entries: Record<string, WidgetEntry> = {
     'radio_browser/station_map': stationMap,
@@ -127,6 +136,7 @@ const entries: Record<string, WidgetEntry> = {
     'random_fox/random_fox': fox,
     'nasa/apod': apod,
     'nasa/neows': neo,
+    'github/notifications': githubNotifications,
     'epic_games/free_games': freeGames,
 }
 

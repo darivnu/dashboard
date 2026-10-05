@@ -7,7 +7,8 @@ import {
     type WidgetDefinition,
     type WidgetProps,
 } from '../widgetRegistry'
-import { useCatalog } from './queries'
+import ConnectButton from './ConnectButton'
+import { useCatalogService } from './queries'
 import type { Instance, WidgetErrorCode } from './types'
 import { useWidgetData, type WidgetError } from './useWidgetData'
 import WidgetErrorBoundary from './WidgetErrorBoundary'
@@ -80,6 +81,7 @@ function DataShell({
     const { instance, onEdit, onSetApiKey } = props
     const { data, fetchedAt, error, isLoading, isRefreshing, refresh } =
         useWidgetData(instance)
+    const service = useCatalogService(instance.serviceId)
 
     // Parsed once per fetch, not on every render: the widget gets the same
     // object until new data arrives.
@@ -125,17 +127,31 @@ function DataShell({
         // First load failed: there is no data to show.
         const needsReauth =
             error?.kind === 'service' && error.code === 'needs_reauth'
-        // Retrying can't help without a key, so offer to set one instead.
-        const setApiKey = (
-            <Button variant="secondary" onClick={onSetApiKey}>
-                Set API key
-            </Button>
-        )
-        body = (
-            <Alert action={needsReauth ? setApiKey : retry}>
-                {error ? messageFor(error) : NOT_RESPONDING}
-            </Alert>
-        )
+        let message = error ? messageFor(error) : NOT_RESPONDING
+        let action: ReactNode = retry
+        // Retrying can't help without credentials, so offer to give them
+        // instead: connect the account for oauth2, set the key otherwise.
+        if (needsReauth && service?.auth.kind === 'oauth2') {
+            const subscribed = service.subscription !== null
+            if (!subscribed) {
+                message = 'Connect your account to use this widget.'
+            }
+            action = (
+                <ConnectButton
+                    serviceId={instance.serviceId}
+                    available={service.auth.available}
+                    label={subscribed ? 'Reconnect' : 'Connect'}
+                    variant="secondary"
+                />
+            )
+        } else if (needsReauth) {
+            action = (
+                <Button variant="secondary" onClick={onSetApiKey}>
+                    Set API key
+                </Button>
+            )
+        }
+        body = <Alert action={action}>{message}</Alert>
     } else if (!parsed.ok) {
         body = <Alert action={retry}>{NOT_RESPONDING}</Alert>
     } else {
@@ -197,10 +213,8 @@ function Frame({
     children,
 }: FrameProps) {
     // Every card shares the one cached catalog request.
-    const catalog = useCatalog()
-    const authKind = catalog.data?.find(
-        (service) => service.id === instance.serviceId,
-    )?.auth.kind
+    const service = useCatalogService(instance.serviceId)
+    const auth = service?.auth
     const title =
         instance.title ?? `${instance.serviceId} / ${instance.widgetId}`
     return (
@@ -217,10 +231,19 @@ function Frame({
                             Refresh
                         </Button>
                     )}
-                    {authKind === 'apiKey' && (
+                    {auth?.kind === 'apiKey' && (
                         <Button variant="ghost" onClick={onSetApiKey}>
                             API key
                         </Button>
+                    )}
+                    {auth?.kind === 'oauth2' && (
+                        <ConnectButton
+                            serviceId={instance.serviceId}
+                            available={auth.available}
+                            label={
+                                service?.subscription ? 'Reconnect' : 'Connect'
+                            }
+                        />
                     )}
                     <Button variant="ghost" onClick={onEdit}>
                         Edit

@@ -49,6 +49,8 @@ export const queryKeys = {
     instances: ['instances'] as const,
     catalog: ['catalog'] as const,
     widgetData: (id: string) => ['widget-data', id] as const,
+    /** prefix of every widgetData key, to invalidate them all at once */
+    allWidgetData: ['widget-data'] as const,
 }
 
 export function useInstances() {
@@ -64,6 +66,12 @@ export function useCatalog() {
         queryKey: queryKeys.catalog,
         queryFn: async () => unwrap(await api.catalog.get()).services,
     })
+}
+
+/** One service of the catalog (undefined while it loads). Shares the cached catalog request. */
+export function useCatalogService(serviceId: string) {
+    const catalog = useCatalog()
+    return catalog.data?.find((service) => service.id === serviceId)
 }
 
 export function useCreateInstance() {

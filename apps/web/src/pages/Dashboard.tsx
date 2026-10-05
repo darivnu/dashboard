@@ -11,6 +11,7 @@ import {
     pack,
     sortByPosition,
 } from '../components/dashboard/layout'
+import OAuthNotice from '../components/dashboard/OAuthNotice'
 import {
     errorMessage,
     useDeleteInstance,
@@ -89,6 +90,7 @@ export default function Dashboard() {
             </header>
 
             <main className="p-6">
+                <OAuthNotice />
                 {saveLayout.isError && (
                     <Alert className="mb-4">
                         The new layout couldn't be saved.{' '}

@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { createTtlCache } from '../lib/cache'
 import { aboutRoutes } from '../modules/about/about.routes'
-import { createFakeRepo } from '../modules/dashboard/dashboard.fakes'
+import { createFakeRepo, noOAuthTokens } from '../modules/dashboard/dashboard.fakes'
 import { createDashboardService } from '../modules/dashboard/dashboard.service'
 import { createDataService } from '../modules/dashboard/data.service'
 import type { CachedWidgetData } from '../modules/dashboard/data.service'
+import { createFakeSubscriptionsRepo } from '../modules/subscriptions/subscriptions.fakes'
 import { registerServices } from './register'
 import { __resetRegistryForTests, registry } from './registry'
 import type { HttpClient } from './types'
@@ -68,7 +69,13 @@ beforeEach(() => {
     stub = createStubHttp()
     repo = createFakeRepo()
     dashboard = createDashboardService(repo)
-    data = createDataService({ repo, http: stub.http, cache: createTtlCache<CachedWidgetData>() })
+    data = createDataService({
+        repo,
+        subscriptions: createFakeSubscriptionsRepo(),
+        http: stub.http,
+        tokens: noOAuthTokens,
+        cache: createTtlCache<CachedWidgetData>(),
+    })
 })
 
 let sequence = 0
