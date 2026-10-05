@@ -7,6 +7,7 @@
 import type { ServiceDef } from '../types'
 import { mockKeyService, mockService } from './mock'
 import { radioBrowserService } from './radio-browser'
+import { letterboxdService } from './letterboxd'
 import { adviceService } from './advice'
 import { randomFoxService } from './random_fox'
 import { nasaService } from './nasa'
@@ -14,7 +15,7 @@ import { epicGamesService } from './epic-games'
 import { githubService } from './github'
 
 /** Registered in every environment. Real, production-ready services go here. */
-export const services: ServiceDef[] = [radioBrowserService, adviceService, randomFoxService, nasaService, githubService, epicGamesService]
+export const services: ServiceDef[] = [radioBrowserService, letterboxdService, adviceService, randomFoxService, nasaService, githubService, epicGamesService]
 
 /**
  * Registered only when NODE_ENV !== 'production' (register.ts decides).
