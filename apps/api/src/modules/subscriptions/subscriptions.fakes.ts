@@ -65,7 +65,8 @@ export function createFakeSubscriptionsRepo(): ServiceSubscriptionRepo & { rows:
 
         async delete(userId, serviceId) {
             const index = rows.findIndex((row) => row.userId === userId && row.serviceId === serviceId)
-            if (index === -1) return false //-1 = not found (not mine, or doesn't exist)
+            if (index === -1)
+                return false //-1 = not found (not mine, or doesn't exist)
 
             rows.splice(index, 1) //remove 1 element at position `index`
             return true
@@ -73,7 +74,8 @@ export function createFakeSubscriptionsRepo(): ServiceSubscriptionRepo & { rows:
 
         async setStatus(userId, serviceId, status) {
             const row = owned(userId, serviceId)
-            if (!row) return undefined
+            if (!row)
+                return undefined
 
             Object.assign(row, { status, updatedAt: new Date() })
             return row
@@ -90,10 +92,12 @@ export function createFakeSubscriptionsRepo(): ServiceSubscriptionRepo & { rows:
             await previous //wait for the caller before us
             try {
                 const row = rows.find((candidate) => candidate.id === id)
-                if (!row) return undefined
+                if (!row)
+                    return undefined
 
                 const credentials = await fn({ ...row }) //a copy, like a fresh row from the database
-                if (credentials === null) return row
+                if (credentials === null)
+                    return row
 
                 Object.assign(row, { credentials, updatedAt: new Date() })
                 return row

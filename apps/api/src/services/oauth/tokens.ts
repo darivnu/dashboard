@@ -26,9 +26,10 @@ export interface TokenManagerDeps {
 }
 
 //the credentials column is plain JSON to the database; check it really holds what we stored
-function readCredentials(value: unknown): OAuthCredentials | null {
+export function readCredentials(value: unknown): OAuthCredentials | null {
     const creds = value as Partial<OAuthCredentials> | null
-    if (!creds || typeof creds.accessToken !== 'string' || creds.accessToken === '') return null
+    if (!creds || typeof creds.accessToken !== 'string' || creds.accessToken === '')
+        return null
     return {
         accessToken: creds.accessToken,
         refreshToken: typeof creds.refreshToken === 'string' ? creds.refreshToken : null,
@@ -60,31 +61,41 @@ export function createTokenManager(deps: TokenManagerDeps) {
         return Date.parse(creds.expiresAt) - now().getTime() <= REFRESH_MARGIN_MS
     }
 
+    //runs while we hold the row lock. Returns the credentials to save, or null to keep the row as it is
+    async function refreshLockedRow(
+        locked: ServiceSubscriptionInstance,
+        providerId: OAuthProviderId,
+        label: string,
+    ): Promise<OAuthCredentials | null> {
+        const current = readCredentials(locked.credentials)
+        if (!current)
+            throw new WidgetFetchError('needs_reauth', `Stored ${label} credentials are unreadable`)
+
+        //another request (maybe on another instance) refreshed while we waited for the lock
+        if (!isExpiring(current))
+            return null
+
+        const provider = getProvider(providerId)
+        if (!provider) {
+            console.error(`Cannot refresh the ${label}: OAuth provider "${providerId}" is not configured`)
+            throw new WidgetFetchError('upstream_error', `OAuth provider ${providerId} is not configured`)
+        }
+        if (!current.refreshToken || !provider.refresh)
+            throw new WidgetFetchError('needs_reauth', `The ${label} token expired and cannot be refreshed`)
+
+        const fresh = await provider.refresh(current.refreshToken)
+        //some providers only send a new refresh token when they rotate it: keep the old one otherwise
+        return { ...fresh, refreshToken: fresh.refreshToken ?? current.refreshToken }
+    }
+
+    //locks the row, refreshes it, and turns every failure into a WidgetFetchError the data service understands
     async function refresh(subscription: ServiceSubscriptionInstance, providerId: OAuthProviderId): Promise<string> {
         const label = `${subscription.serviceId} subscription`
         try {
-            const row = await repo.updateCredentialsLocked(subscription.id, async (locked) => {
-                const current = readCredentials(locked.credentials)
-                if (!current)
-                    throw new WidgetFetchError('needs_reauth', `Stored ${label} credentials are unreadable`)
-
-                //another request (maybe on another instance) refreshed while we waited for the lock
-                if (!isExpiring(current))
-                    return null
-
-                const provider = getProvider(providerId)
-                if (!provider) {
-                    console.error(`Cannot refresh the ${label}: OAuth provider "${providerId}" is not configured`)
-                    throw new WidgetFetchError('upstream_error', `OAuth provider ${providerId} is not configured`)
-                }
-                if (!current.refreshToken || !provider.refresh) {
-                    throw new WidgetFetchError('needs_reauth', `The ${label} token expired and cannot be refreshed`)
-                }
-
-                const fresh = await provider.refresh(current.refreshToken)
-                //some providers only send a new refresh token when they rotate it: keep the old one otherwise
-                return { ...fresh, refreshToken: fresh.refreshToken ?? current.refreshToken }
-            })
+            const row = await repo.updateCredentialsLocked(
+                subscription.id,
+                async (locked) => refreshLockedRow(locked, providerId, label),
+            )
 
             const creds = row ? readCredentials(row.credentials) : null
             if (!creds)
@@ -93,35 +104,35 @@ export function createTokenManager(deps: TokenManagerDeps) {
         } catch (error) {
             if (error instanceof WidgetFetchError)
                 throw error
-            if (isPermanentOAuthError(error)) {
+            if (isPermanentOAuthError(error))
                 throw new WidgetFetchError('needs_reauth', `The provider rejected the ${label} refresh token`)
-            }
             //never pass the error itself on (as cause or to the logs): it may carry the provider's response
             console.error(`Refreshing the ${label} failed: ${describeOAuthError(error)}`)
             throw new WidgetFetchError('upstream_error', `Refreshing the ${label} failed`)
         }
     }
 
-    return {
-        async getAccessToken(subscription: ServiceSubscriptionInstance, providerId: OAuthProviderId): Promise<string> {
-            const creds = readCredentials(subscription.credentials)
-            if (!creds)
-                throw new WidgetFetchError('needs_reauth', `Stored ${subscription.serviceId} credentials are unreadable`)
-            if (!isExpiring(creds))
-                return creds.accessToken
+    async function getAccessToken(subscription: ServiceSubscriptionInstance, providerId: OAuthProviderId): Promise<string> {
+        const creds = readCredentials(subscription.credentials)
+        if (!creds)
+            throw new WidgetFetchError('needs_reauth', `Stored ${subscription.serviceId} credentials are unreadable`)
+        if (!isExpiring(creds))
+            return creds.accessToken
 
-            //someone in this instance is already refreshing this subscription: wait for their result
-            const pending = inFlight.get(subscription.id)
-            if (pending)
-                return pending
+        //someone in this instance is already refreshing this subscription: wait for their result
+        const pending = inFlight.get(subscription.id)
+        if (pending)
+            return pending
 
-            const promise = refresh(subscription, providerId).finally(() => {
-                inFlight.delete(subscription.id)
-            })
-            inFlight.set(subscription.id, promise)
-            return promise
-        },
+        const promise = refresh(subscription, providerId).finally(() => {
+            inFlight.delete(subscription.id)
+        })
+        inFlight.set(subscription.id, promise)
+        return promise
     }
+
+    //only getAccessToken is public, the rest stays private to the factory
+    return { getAccessToken }
 }
 
 export type TokenManager = ReturnType<typeof createTokenManager>

@@ -64,8 +64,10 @@ export interface FetchCtx {
  * What an oauth2 subscription keeps in its (encrypted) `credentials` column.
  * `expiresAt` is an ISO date, or null for tokens that never expire (GitHub
  * OAuth App tokens). `refreshToken` is null when the provider gave none.
+ * A `type` rather than an `interface` so it fits the column's generic
+ * `Record<string, unknown>` (interfaces have no implicit index signature).
  */
-export interface OAuthCredentials {
+export type OAuthCredentials = {
     accessToken: string
     refreshToken: string | null
     expiresAt: string | null

@@ -36,7 +36,7 @@ beforeEach(() => {
     const repo = createFakeRepo()
     subscriptionsRepo = createFakeSubscriptionsRepo()
     dashboard = createDashboardService(repo)
-    subscriptions = createSubscriptionsService(subscriptionsRepo)
+    subscriptions = createSubscriptionsService(subscriptionsRepo, () => null)
     data = createDataService({
         repo,
         subscriptions: subscriptionsRepo,

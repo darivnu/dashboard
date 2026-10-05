@@ -71,7 +71,8 @@ export interface SmtpConfig {
 // fails here at boot instead of on the first registration.
 function smtpConfig(): SmtpConfig | null {
     const host = optional('SMTP_HOST', '')
-    if (host === '') return null
+    if (host === '')
+        return null
 
     return {
         host,
@@ -96,7 +97,8 @@ function oauthProvider(prefix: string): OAuthClientConfig | null {
     const clientId = optional(idName, '')
     const clientSecret = optional(secretName, '')
 
-    if (clientId === '' && clientSecret === '') return null
+    if (clientId === '' && clientSecret === '')
+        return null
     if (clientId === '' || clientSecret === '') {
         throw new Error(`${idName} and ${secretName} must be set together (or both left unset)`)
     }

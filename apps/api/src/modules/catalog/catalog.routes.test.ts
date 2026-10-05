@@ -1,7 +1,9 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test'
 import { Elysia } from 'elysia'
 import { ALICE, BOB, fakeSession, loggedIn } from '../../plugins/session.fakes'
 import { errorHandler } from '../../lib/errors'
+import { __setProviderForTests } from '../../services/oauth/providers'
+import { createFakeProvider } from '../../services/oauth/providers.fakes'
 import { __resetRegistryForTests, registry } from '../../services/registry'
 import type { ServiceDef } from '../../services/types'
 import { createFakeSubscriptionsRepo } from '../subscriptions/subscriptions.fakes'
@@ -34,6 +36,10 @@ function registerStocks() {
         widgets: [],
     })
 }
+
+afterEach(() => {
+    __setProviderForTests('github', undefined) //back to the real (env-based) provider
+})
 
 beforeEach(() => {
     __resetRegistryForTests()
@@ -111,7 +117,8 @@ describe('GET /catalog', () => {
         })
     })
 
-    test('exposes auth.fields for apiKey services and nothing but the kind for oauth2', async () => {
+    test('exposes auth.fields for apiKey services, and the provider and availability for oauth2', async () => {
+        __setProviderForTests('github', null)
         registry.register({
             id: 'keyed',
             name: 'Keyed',
@@ -131,7 +138,21 @@ describe('GET /catalog', () => {
             kind: 'apiKey',
             fields: [{ name: 'token', label: 'Token', required: true, type: 'string' }],
         })
-        expect(body.services[1].auth).toEqual({ kind: 'oauth2' })
+        expect(body.services[1].auth).toEqual({ kind: 'oauth2', provider: 'github', available: false })
+    })
+
+    test('an oauth2 service is available once its provider is configured, and its scopes stay private', async () => {
+        __setProviderForTests('github', createFakeProvider())
+        registry.register({
+            id: 'oauthed',
+            name: 'OAuthed',
+            auth: { kind: 'oauth2', provider: 'github', scopes: ['repo'] },
+            widgets: [],
+        })
+
+        const { body } = await getCatalog(loggedIn)
+
+        expect(body.services[0].auth).toEqual({ kind: 'oauth2', provider: 'github', available: true })
     })
 
     test('an integer param with bounds carries min and max; one without has neither key', async () => {

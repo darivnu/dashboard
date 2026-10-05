@@ -21,7 +21,9 @@ export function isPermanentOAuthError(error: unknown): boolean {
 //never log the error object itself, arctic errors can carry the provider's response body
 //(arctic doesn't set error.name on its errors, so that one is spelled out)
 export function describeOAuthError(error: unknown): string {
-    if (error instanceof OAuth2RequestError) return `OAuth2RequestError (${error.code})`
-    if (error instanceof Error) return error.name
+    if (error instanceof OAuth2RequestError)
+        return `OAuth2RequestError (${error.code})`
+    if (error instanceof Error)
+        return error.name
     return typeof error
 }

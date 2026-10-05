@@ -109,11 +109,27 @@ const factories: Record<OAuthProviderId, () => OAuthProvider | null> = {
 }
 
 const instances = new Map<OAuthProviderId, OAuthProvider | null>()
+const testOverrides = new Map<OAuthProviderId, OAuthProvider | null>()
 
 /** The adapter for `id`, or null when its env variables are not set. */
 export function getProvider(id: OAuthProviderId): OAuthProvider | null {
+    if (testOverrides.has(id))
+        return testOverrides.get(id) ?? null
     if (!instances.has(id)) {
         instances.set(id, factories[id]())
     }
     return instances.get(id) ?? null
+}
+
+/**
+ * Test-only. Makes getProvider(id) return `provider` (a fake, or null for
+ * "not configured"); `undefined` removes the override. Same idea as
+ * __resetRegistryForTests: tests set this instead of mocking the module,
+ * because a module mock would leak into every other test file of the run.
+ */
+export function __setProviderForTests(id: OAuthProviderId, provider: OAuthProvider | null | undefined): void {
+    if (provider === undefined)
+        testOverrides.delete(id)
+    else
+        testOverrides.set(id, provider)
 }

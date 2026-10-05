@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia'
 import { Type } from '@sinclair/typebox'
 import { auth } from '../../plugins/session'
+import { getProvider } from '../../services/oauth/providers'
 import { registry } from '../../services/registry'
 import type { ParamDef, ServiceAuth, ServiceDef, WidgetDef } from '../../services/types'
 //import { SubscriptionStatus } from '../subscriptions/subscriptions.repo'
@@ -49,7 +50,13 @@ const authSchema = t.Union([
             description: 'Credentials the user must provide to subscribe to this service',
         }),
     }),
-    t.Object({ kind: t.Literal('oauth2') }),
+    t.Object({
+        kind: t.Literal('oauth2'),
+        provider: t.String({ description: 'OAuth provider the user connects to', examples: ['github'] }),
+        available: t.Boolean({
+            description: 'False when the server has no credentials for this provider: connecting is impossible for now',
+        }),
+    }),
 ])
 
 const widgetSchema = t.Object({
@@ -110,6 +117,10 @@ function toParam(param: ParamDef) {
 function toAuth(serviceAuth: ServiceAuth) {
     if (serviceAuth.kind === 'apiKey') {
         return { kind: serviceAuth.kind, fields: serviceAuth.fields.map(toParam) }
+    }
+    if (serviceAuth.kind === 'oauth2') {
+        //never the scopes or anything else from the definition: just what the Connect button needs
+        return { kind: serviceAuth.kind, provider: serviceAuth.provider, available: getProvider(serviceAuth.provider) !== null }
     }
     return { kind: serviceAuth.kind }
 }

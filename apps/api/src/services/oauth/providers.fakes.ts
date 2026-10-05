@@ -62,7 +62,8 @@ export function createFakeProvider(overrides: Partial<FakeOAuthProvider> = {}): 
 
         async exchangeCode(code) {
             provider.calls.exchange.push(code)
-            if (provider.exchangeError) throw provider.exchangeError
+            if (provider.exchangeError)
+                throw provider.exchangeError
             return provider.exchangeResult
         },
 
@@ -71,13 +72,15 @@ export function createFakeProvider(overrides: Partial<FakeOAuthProvider> = {}): 
             if (provider.refreshDelayMs > 0) {
                 await new Promise((resolve) => setTimeout(resolve, provider.refreshDelayMs))
             }
-            if (provider.refreshError) throw provider.refreshError
+            if (provider.refreshError)
+                throw provider.refreshError
             return provider.refreshResult
         },
 
         async revoke(accessToken) {
             provider.calls.revoke.push(accessToken)
-            if (provider.revokeError) throw provider.revokeError
+            if (provider.revokeError)
+                throw provider.revokeError
         },
 
         ...overrides,

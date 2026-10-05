@@ -102,10 +102,12 @@ export const subscriptionsRepo: ServiceSubscriptionRepo = {
                 .where(eq(serviceSubscriptions.id, id))
                 .for('update') //lock the row until the transaction ends
             const row = locked[0]
-            if (!row) return undefined
+            if (!row)
+                return undefined
 
             const credentials = await fn(row)
-            if (credentials === null) return row //nothing to change
+            if (credentials === null)
+                return row //nothing to change
 
             const updated = await tx
                 .update(serviceSubscriptions)
