@@ -10,9 +10,10 @@ import { radioBrowserService } from './radio-browser'
 import { adviceService } from './advice'
 import { randomFoxService } from './random_fox'
 import { nasaService } from './nasa'
+import { githubService } from './github'
 
 /** Registered in every environment. Real, production-ready services go here. */
-export const services: ServiceDef[] = [radioBrowserService, adviceService, randomFoxService, nasaService]
+export const services: ServiceDef[] = [radioBrowserService, adviceService, randomFoxService, nasaService, githubService]
 
 /**
  * Registered only when NODE_ENV !== 'production' (register.ts decides).
