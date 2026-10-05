@@ -69,3 +69,26 @@ Notes:
 - The free tier allows 300 emails a day.
 - With a free-mail sender such as Gmail, Brevo rewrites the From domain to `brevosend.com` and some mail may land in spam. Moving to an authenticated domain later only changes `MAIL_FROM`.
 - Some hosts block outbound SMTP ports on free plans (Render does). The API still answers normally and logs `ETIMEDOUT`; the mail is not sent.
+
+## GitHub (OAuth)
+
+Without these variables the API still boots, but the GitHub service shows as unavailable and its Connect button is disabled. To enable it:
+
+1. https://github.com/settings/developers → OAuth Apps → New OAuth App.
+2. Fill in:
+   - Homepage URL: where the frontend is served (`http://localhost:8080` with Docker, `http://localhost:5173` with `bun run dev`). Only shown on GitHub's consent screen.
+   - Authorization callback URL: `APP_URL` + `/api/subscriptions/oauth/github/callback`, so `http://localhost:8080/api/subscriptions/oauth/github/callback` locally. It must match exactly.
+   - Leave "Enable Device Flow" and wildcard matching off.
+3. Generate a client secret. Copy it now; it is shown once.
+4. Set, in `apps/api/.env` (local) or the root `.env` (Docker):
+
+```sh
+OAUTH_GITHUB_CLIENT_ID=<the app's Client ID>
+OAUTH_GITHUB_CLIENT_SECRET=<the client secret>
+```
+
+Both or neither: only one of the two set stops the API at boot.
+
+Notes:
+- An OAuth App accepts a single callback URL, so production needs its own app, with the deployed API's URL in the callback.
+- Tokens are stored encrypted with `MASTER_KEY`; changing that key means every user has to connect again.
