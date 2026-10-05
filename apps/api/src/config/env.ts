@@ -82,6 +82,27 @@ function smtpConfig(): SmtpConfig | null {
     }
 }
 
+export interface OAuthClientConfig {
+    clientId: string
+    clientSecret: string
+}
+
+// All-or-nothing group, like SMTP. Neither variable set means the provider is
+// simply not configured (null): the API still boots, and its services show
+// as unavailable. Only one of the two set is a mistake, so it stops the boot.
+function oauthProvider(prefix: string): OAuthClientConfig | null {
+    const idName = `OAUTH_${prefix}_CLIENT_ID`
+    const secretName = `OAUTH_${prefix}_CLIENT_SECRET`
+    const clientId = optional(idName, '')
+    const clientSecret = optional(secretName, '')
+
+    if (clientId === '' && clientSecret === '') return null
+    if (clientId === '' || clientSecret === '') {
+        throw new Error(`${idName} and ${secretName} must be set together (or both left unset)`)
+    }
+    return { clientId, clientSecret }
+}
+
 const nodeEnv = optional('NODE_ENV', 'development')
 const isProdEnv = nodeEnv === 'production' //weird ass way to see if 2 variables are equal to each other. I hate this language
 
@@ -101,6 +122,9 @@ export const env = {
     sessionTtlDays: positiveInteger('SESSION_TTL_DAYS', '30'),
     masterKey: masterKey(),
     smtp: smtpConfig(),
+    oauth: {
+        github: oauthProvider('GITHUB'),
+    },
 } as const
 
 export const isDev = env.nodeEnv === 'development'

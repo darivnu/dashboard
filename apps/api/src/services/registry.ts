@@ -1,3 +1,4 @@
+import { isOAuthProviderId } from './oauth/ids'
 import type { ParamDef, ServiceDef, WidgetDef, WidgetRefresh } from './types'
 
 const services = new Map<string, ServiceDef>()
@@ -71,6 +72,18 @@ function assertValidService(def: ServiceDef): void {
     if (def.auth.kind === 'apiKey') {
         assertUniqueParams(`${def.id} auth`, def.auth.fields)
         assertValidBounds(`${def.id} auth`, def.auth.fields)
+    }
+
+    //only checks that the provider is one we know; whether its env is set is checked at request time,
+    //so the API still boots (with the service shown as unavailable) when a provider isn't configured
+    if (def.auth.kind === 'oauth2') {
+        const { provider, scopes } = def.auth
+        if (!isOAuthProviderId(provider)) {
+            throw new Error(`Service "${def.id}": unknown OAuth provider "${provider}"`)
+        }
+        if (!Array.isArray(scopes) || !scopes.every((scope) => typeof scope === 'string')) {
+            throw new Error(`Service "${def.id}": auth.scopes must be an array of strings`)
+        }
     }
 }
 
