@@ -1,6 +1,7 @@
 {
     "name": "api",
     "private": true,
+    "type": "module",
     "scripts": {
         "dev": "bun run migrate && bun --watch src/server.ts",
         "build": "bun build src/server.ts src/db/migrate.ts --target bun --outdir dist",
@@ -14,6 +15,7 @@
         "@elysiajs/openapi": "^1.4.16",
         "@elysiajs/static": "^1.3.0",
         "@sinclair/typebox": "0.34.52",
+        "arctic": "^3.7.0",
         "drizzle-orm": "^0.45.2",
         "elysia": "^1.3.0",
         "fast-xml-parser": "^5.11.2",

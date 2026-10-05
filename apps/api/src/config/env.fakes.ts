@@ -4,6 +4,8 @@ import { mock } from 'bun:test'
  * Test-only. Importing this file replaces `config/env` with fixed values, so
  * modules that read env while loading (lib/mailer, auth.service) need neither
  * a .env nor real variables. `smtp` is null: the console mailer is selected.
+ * Every OAuth provider is null (not configured); tests that need one mock
+ * `services/oauth/providers` instead.
  *
  * Import it before the module under test.
  */
@@ -17,6 +19,9 @@ export const fakeEnv = {
     sessionTtlDays: 30,
     masterKey: Buffer.alloc(32, 1),
     smtp: null,
+    oauth: {
+        github: null,
+    },
 } as const
 
 mock.module('./env', () => ({

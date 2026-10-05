@@ -63,6 +63,30 @@ describe('GET /about.json', () => {
         ])
     })
 
+    test('never mentions actions', async () => {
+        registry.register({
+            id: 'hub',
+            name: 'Hub',
+            auth: { kind: 'none' },
+            widgets: [],
+            actions: [
+                {
+                    id: 'star',
+                    name: 'Star',
+                    description: 'Stars a repository',
+                    params: [],
+                    rateLimit: { max: 5, windowSeconds: 60 },
+                    run: async () => ({}),
+                },
+            ],
+        })
+
+        const { body } = await getAbout()
+
+        expect(body.server.services).toEqual([{ name: 'Hub', widgets: [] }])
+        expect(JSON.stringify(body)).not.toContain('actions')
+    })
+
     test('uses the first X-Forwarded-For entry as client.host', async () => {
         const { body } = await getAbout({ 'x-forwarded-for': '1.2.3.4, 5.6.7.8' })
 

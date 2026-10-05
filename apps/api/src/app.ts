@@ -5,6 +5,7 @@ import { registerServices } from './services/register'
 import { AppError, errorHandler } from './lib/errors'
 import { authRoutes } from './modules/auth/auth.routes'
 import { aboutRoutes } from './modules/about/about.routes'
+import { actionsRoutes } from './modules/actions/actions.routes'
 import { catalogRoutes } from './modules/catalog/catalog.routes'
 import { dashboardRoutes } from './modules/dashboard/dashboard.routes'
 import { subscriptionsRoutes } from './modules/subscriptions/subscriptions.routes'
@@ -22,6 +23,7 @@ const api = new Elysia({ prefix: '/api' })
     .use(catalogRoutes)
     .use(dashboardRoutes)
     .use(subscriptionsRoutes)
+    .use(actionsRoutes)
     .all('*', () => {
         throw new AppError(404, 'NOT_FOUND', 'Route not found')
     })
@@ -38,6 +40,7 @@ if (isDev) {
                 { name: 'Catalog', description: 'Services and widgets that can be placed on a dashboard' },
                 { name: 'Dashboard', description: 'The current user\'s widget instances, their layout and their data' },
                 { name: 'Subscriptions', description: 'The current user\'s service subscriptions (credentials are write-only)' },
+                { name: 'Actions', description: 'Operations a user triggers on demand on a service, such as reporting a play' },
             ],
             components: {
                 securitySchemes: {
@@ -59,7 +62,7 @@ export const app = new Elysia()
     .use(aboutRoutes)
 
 if (existsSync('../web/dist')) {
-    app.use(staticPlugin({ assets: '../web/dist', prefix: '/', indexHTML: true }))
+    app.use(staticPlugin({ assets: '../web/dist', prefix: '/', indexHTML: true, alwaysStatic: true }))
     app.get('/*', ({ path }) => {
         if (path.startsWith('/api')) throw new NotFoundError()
         return Bun.file('../web/dist/index.html')

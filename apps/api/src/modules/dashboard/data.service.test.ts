@@ -4,6 +4,10 @@ import { AppError } from '../../lib/errors'
 import { __resetRegistryForTests, registry } from '../../services/registry'
 import { WidgetFetchError } from '../../services/types'
 import type { FetchCtx, HttpClient, ServiceAuth, WidgetParams } from '../../services/types'
+import { OAuth2RequestError } from 'arctic'
+import { createFakeProvider, fakeCredentials } from '../../services/oauth/providers.fakes'
+import type { FakeOAuthProvider } from '../../services/oauth/providers.fakes'
+import { createTokenManager } from '../../services/oauth/tokens'
 import { createFakeSubscriptionsRepo } from '../subscriptions/subscriptions.fakes'
 import { createFakeRepo, fakeService, fakeWidget } from './dashboard.fakes'
 import { createDataService } from './data.service'
@@ -25,6 +29,7 @@ let subscriptions: ReturnType<typeof createFakeSubscriptionsRepo>
 let service: ReturnType<typeof createDataService>
 let fetchCalls: { ctx: FetchCtx; params: WidgetParams }[]
 let fetchImpl: (params: WidgetParams) => Promise<unknown>
+let provider: FakeOAuthProvider
 
 beforeEach(() => {
     clock = { ms: 0 }
@@ -46,10 +51,12 @@ beforeEach(() => {
 
     repo = createFakeRepo()
     subscriptions = createFakeSubscriptionsRepo()
+    provider = createFakeProvider()
     service = createDataService({
         repo,
         subscriptions,
         http: fakeHttp,
+        tokens: createTokenManager({ repo: subscriptions, getProvider: () => provider, now: () => new Date(clock.ms) }),
         cache: createTtlCache<CachedWidgetData>({ now: () => clock.ms }),
         now: () => new Date(clock.ms),
     })
@@ -338,6 +345,88 @@ describe('authenticated services', () => {
         expect(result).toEqual({ ok: false, code: 'needs_reauth' })
         expect(consoleError).toHaveBeenCalledTimes(1)
         consoleError.mockRestore()
+    })
+})
+
+describe('oauth2 services', () => {
+    const OAUTHED = 'oauthed'
+    let tokensSeen: string[]
+    let errorSpy: ReturnType<typeof spyOn>
+
+    beforeEach(() => {
+        tokensSeen = []
+        errorSpy = spyOn(console, 'error').mockImplementation(() => {})
+        registry.register(fakeService({
+            id: OAUTHED,
+            auth: { kind: 'oauth2', provider: 'github', scopes: ['notifications'] },
+            widgets: [
+                fakeWidget({
+                    fetch: async (ctx, params) => {
+                        fetchCalls.push({ ctx, params })
+                        tokensSeen.push(await ctx.getAccessToken!())
+                        return { ok: true }
+                    },
+                }),
+            ],
+        }))
+    })
+
+    afterEach(() => {
+        errorSpy.mockRestore()
+    })
+
+    function addOAuthInstance() {
+        return addInstance({ city: 'Paris' }, { serviceId: OAUTHED })
+    }
+
+    // Expires 30 s after the test clock's start: inside the refresh margin.
+    const expiring = fakeCredentials({
+        accessToken: 'old-access-token',
+        refreshToken: 'old-refresh-token',
+        expiresAt: new Date(30_000).toISOString(),
+    })
+
+    test('the widget gets getAccessToken and no credentials', async () => {
+        await subscriptions.upsert(ALICE, OAUTHED, { ...fakeCredentials({ accessToken: 'alice-token' }) })
+        const instance = await addOAuthInstance()
+
+        const result = await service.getInstanceData(ALICE, instance.id)
+
+        expect(result).toMatchObject({ ok: true })
+        expect(fetchCalls[0]!.ctx.credentials).toBeUndefined()
+        expect(tokensSeen).toEqual(['alice-token'])
+    })
+
+    test('an expiring token is refreshed before the widget uses it', async () => {
+        await subscriptions.upsert(ALICE, OAUTHED, { ...expiring })
+        const instance = await addOAuthInstance()
+
+        await service.getInstanceData(ALICE, instance.id)
+
+        expect(tokensSeen).toEqual(['refreshed-access-token'])
+        expect(subscriptions.rows[0]!.status).toBe('active')
+    })
+
+    test('a rejected refresh token flags the subscription as needs_reauth', async () => {
+        await subscriptions.upsert(ALICE, OAUTHED, { ...expiring })
+        const instance = await addOAuthInstance()
+        provider.refreshError = new OAuth2RequestError('invalid_grant', null, null, null)
+
+        const result = await service.getInstanceData(ALICE, instance.id)
+
+        expect(result).toEqual({ ok: false, code: 'needs_reauth' })
+        expect(subscriptions.rows[0]!.status).toBe('needs_reauth')
+    })
+
+    test('a provider outage is an upstream_error and leaves the subscription active', async () => {
+        await subscriptions.upsert(ALICE, OAUTHED, { ...expiring })
+        const instance = await addOAuthInstance()
+        provider.refreshError = new TypeError('fetch failed')
+
+        const result = await service.getInstanceData(ALICE, instance.id)
+
+        expect(result).toEqual({ ok: false, code: 'upstream_error' })
+        expect(subscriptions.rows[0]!.status).toBe('active')
     })
 })
 

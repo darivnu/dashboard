@@ -4,7 +4,7 @@
  *
  * One widget, `station_map`: the most-listened stations worldwide that have
  * coordinates, so the frontend can draw one bubble per station on a map and
- * play its stream on click.
+ * play its stream on click. One pinned station is added on top of them.
  *
  * Every request goes through `ctx.http`, which already turns a 429 into
  * `rate_limited` and any other HTTP or network failure into `upstream_error`.
@@ -32,8 +32,21 @@ const EXTRA_ROWS = 10
 
 /** Bounds and default of the `limit` param: how many bubbles the map shows. */
 const MIN_STATIONS = 1
-const MAX_STATIONS = 500
+const MAX_STATIONS = 999
 const DEFAULT_STATIONS = 200
+
+/**
+ * A station shown on every map whatever its rank: "Spinning Seal FM", kept as
+ * an easter egg. It would never arrive through the search: its directory
+ * entry has no coordinates and far too few clicks. It is looked up by id, so
+ * its name and stream stay current, and placed at this fixed position. The position is
+ * Epitech Madrid as an Easter Egg
+ */
+const PINNED_STATION = {
+    id: '79930fba-66b9-42cc-8b40-cf766176a38d',
+    lat: 40.423194,
+    lng: -3.710889,
+}
 
 type Query = Record<string, string | number | boolean>
 
@@ -59,10 +72,6 @@ async function get(ctx: FetchCtx, path: string, query: Query): Promise<unknown> 
     return ctx.http.json(`${BASE_URL}${path}${queryString}`, {
         headers: { 'User-Agent': USER_AGENT },
     })
-}
-
-function clamp(value: number, min: number, max: number): number {
-    return Math.min(Math.max(value, min), max)
 }
 
 /** Trimmed string, or null when the value is missing, not a string or blank. */
@@ -108,6 +117,23 @@ function cleanStation(raw: unknown): Station | null {
 }
 
 /**
+ * The pinned station, or null when it cannot be shown. A failed lookup must
+ * not take the map down with it, so every failure here means "leave it out".
+ */
+async function fetchPinnedStation(ctx: FetchCtx): Promise<Station | null> {
+    try {
+        const body = await get(ctx, `/json/stations/byuuid/${PINNED_STATION.id}`, {})
+        const row: unknown = Array.isArray(body) ? body[0] : null
+        if (typeof row !== 'object' || row === null) return null
+
+        // Same checks as every other row, with our coordinates in place of the entry's.
+        return cleanStation({ ...row, geo_lat: PINNED_STATION.lat, geo_long: PINNED_STATION.lng })
+    } catch {
+        return null
+    }
+}
+
+/**
  * Drops stations whose stream was already seen and stops at `limit`. Rows
  * arrive most listened first, so the copy kept is the most listened one.
  */
@@ -138,9 +164,11 @@ export const radioBrowserService: ServiceDef = {
             params: [
                 {
                     name: 'limit',
-                    label: `How many stations to show on the map (${MIN_STATIONS}-${MAX_STATIONS})`,
+                    label: 'How many stations to show on the map',
                     type: 'integer',
                     default: DEFAULT_STATIONS,
+                    min: MIN_STATIONS,
+                    max: MAX_STATIONS,
                 },
             ],
 
@@ -152,16 +180,21 @@ export const radioBrowserService: ServiceDef = {
             refresh: { default: 600, min: 120 },
 
             async fetch(ctx, params) {
-                const limit = clamp(Number(params.limit), MIN_STATIONS, MAX_STATIONS)
+                // Validated against the param's min/max before fetch() runs,
+                // so no clamp is needed here.
+                const limit = Number(params.limit)
 
-                const body = await get(ctx, '/json/stations/search', {
-                    has_geo_info: true,
-                    is_https: true,
-                    hidebroken: true,
-                    order: 'clickcount',
-                    reverse: true,
-                    limit: limit + EXTRA_ROWS,
-                })
+                const [body, pinned] = await Promise.all([
+                    get(ctx, '/json/stations/search', {
+                        has_geo_info: true,
+                        is_https: true,
+                        hidebroken: true,
+                        order: 'clickcount',
+                        reverse: true,
+                        limit: limit + EXTRA_ROWS,
+                    }),
+                    fetchPinnedStation(ctx),
+                ])
 
                 if (!Array.isArray(body)) {
                     throw new WidgetFetchError('upstream_error', 'Radio Browser: station list is not an array')
@@ -171,7 +204,15 @@ export const radioBrowserService: ServiceDef = {
                     .map(cleanStation)
                     .filter((station): station is Station => station !== null)
 
-                return { stations: dedupe(stations, limit) }
+                const listed = dedupe(stations, limit)
+
+                // Added on top of `limit`, unless the search already returned it.
+                const alreadyListed =
+                    pinned !== null &&
+                    listed.some((station) => station.id === pinned.id || station.streamUrl === pinned.streamUrl)
+                if (pinned !== null && !alreadyListed) listed.push(pinned)
+
+                return { stations: listed }
             },
         },
     ],

@@ -13,6 +13,9 @@
  *   - `mock_key`  auth.kind 'apiKey'  → the user must subscribe with a key first;
  *                                       the data endpoint passes it as ctx.credentials
  *
+ * `mock` also declares an action, `ping`: the template for anything a user
+ * triggers on demand rather than a widget fetched on a timer.
+ *
  * Only registered outside production (see index.ts `devOnlyServices`).
  */
 import type { ParamDef, ServiceDef, WidgetFetchErrorCode, WidgetParams } from '../types'
@@ -75,7 +78,7 @@ function failIfRequested(params: WidgetParams): void {
 
     const code = FAIL_CODES.find((candidate) => candidate === requested)
     if (code) {
-        throw new WidgetFetchError(code, `mock widget asked to fail with "${code}"`)
+        throw new WidgetFetchError(code, `mock asked to fail with "${code}"`)
     }
 }
 
@@ -105,7 +108,8 @@ export const mockService: ServiceDef = {
             /**
              * Drives three things:
              *  1. /about.json  → `{ name, type }` per param
-             *  2. /api/catalog → `{ name, label, type, required, default }`
+             *  2. /api/catalog → `{ name, label, type, required, default }`,
+             *     plus `min` / `max` for an integer param that declares them
              *  3. validation   → buildParamSchema() turns this list into a
              *     TypeBox schema. On instance create/update, bad input is a
              *     400 INVALID_PARAMS; unknown keys are dropped, defaults are
@@ -122,12 +126,29 @@ export const mockService: ServiceDef = {
                 },
                 {
                     name: 'count',
-                    label: 'How many times to repeat the message (1-10)',
+                    label: 'How many times to repeat the message',
                     type: 'integer',
                     // A default makes the param optional in practice: it is
                     // filled in before fetch() runs, so `params.count` is
                     // always a number here.
                     default: 1,
+                    /**
+                     * Inclusive range, integer params only. Each bound is
+                     * optional and enforced on its own side. Declared once
+                     * here, they drive three things:
+                     *  1. /api/catalog → published as `min` / `max`, so a form
+                     *     can enforce the range without parsing the label
+                     *  2. validation   → a value outside the range is a
+                     *     400 INVALID_PARAMS on create/update, and
+                     *     `invalid_config` from the data endpoint for an
+                     *     instance already stored with such a value
+                     *  3. the registry → rejects at boot a bound that is not
+                     *     an integer, min > max, and a default outside the range
+                     * So do not repeat the range in the label and do not clamp
+                     * in fetch().
+                     */
+                    min: 1,
+                    max: 10,
                 },
                 failParam,
             ],
@@ -155,15 +176,97 @@ export const mockService: ServiceDef = {
             async fetch(_ctx, params) {
                 failIfRequested(params)
 
-                // After validation `message` is a string and `count` a number,
-                // but WidgetParams is typed `string | number`, so narrow here.
+                // After validation `message` is a string and `count` a number
+                // inside its declared min/max, but WidgetParams is typed
+                // `string | number`, so narrow here. No clamp needed.
                 const message = String(params.message)
-                const count = Math.min(Math.max(Number(params.count), 1), 10)
+                const count = Number(params.count)
 
                 return {
                     message,
                     count,
                     repeated: Array.from({ length: count }, () => message),
+                    timestamp: new Date().toISOString(),
+                }
+            },
+        },
+    ],
+
+    /**
+     * Actions: what a user TRIGGERS, as opposed to a widget, which the
+     * dashboard fetches on a timer. "Report a play" or "star a repository"
+     * are actions. The list is optional; a service without it has none.
+     *
+     * No route to write: every action of every service is run by
+     *   POST /api/services/:serviceId/actions/:actionId   body { params }
+     * (modules/actions/). This one is POST /api/services/mock/actions/ping.
+     * The catalog lists it under the service's `actions`; /about.json does not.
+     *
+     * What the route does, in order:
+     *   1. unknown service or action          → 404 NOT_FOUND
+     *   2. over `rateLimit`                   → 429 RATE_LIMITED + Retry-After
+     *   3. params invalid                     → 400 INVALID_PARAMS
+     *   4. service auth is not 'none'         → 200 { ok: false, code: 'needs_reauth' }
+     *      (actions get no credentials yet, so run() is not called)
+     *   5. run()                              → 200 { ok: true, data }
+     */
+    actions: [
+        {
+            // Unique within the service; it is the :actionId of the URL.
+            id: 'ping',
+            // Shown by the frontend and returned by /api/catalog.
+            name: 'Ping',
+            description: 'Sends a message and gets it back with a timestamp',
+
+            /**
+             * Same ParamDef shape and same validation as widget params:
+             * unknown keys are dropped, defaults applied, numeric strings
+             * become integers, and integer `min` / `max` are enforced. Here
+             * the values come from the request body, not from a stored
+             * instance, so bad input is always a 400 INVALID_PARAMS.
+             */
+            params: [
+                {
+                    name: 'message',
+                    label: 'Message to send back',
+                    type: 'string',
+                    required: true,
+                },
+                failParam,
+            ],
+
+            /**
+             * Optional. At most `max` calls per `windowSeconds`, counted per
+             * user AND per action: one user pinging too often slows down
+             * neither another user nor their own other actions. The window
+             * starts at the user's first call. The call over the limit gets a
+             * 429 with a Retry-After header, and run() is not called.
+             *
+             * Every call that reaches step 2 counts, including one whose
+             * params turn out invalid. Without `rateLimit` the action is not
+             * limited at all, so set one on anything that hits an upstream.
+             * The registry refuses at boot a `max` or `windowSeconds` that is
+             * not an integer >= 1.
+             */
+            rateLimit: { max: 5, windowSeconds: 60 },
+
+            /**
+             * Called with the validated params. Same rules as a widget's
+             * fetch(): use `ctx.http`, never the global fetch(), and signal
+             * failure by THROWING WidgetFetchError:
+             *   needs_reauth | rate_limited | upstream_error → 200 { ok: false, code }
+             *   invalid_config                               → 400 INVALID_PARAMS
+             * Any other exception is logged and becomes `upstream_error`.
+             *
+             * Unlike a widget, the result is NEVER cached: two identical
+             * calls run twice. Whatever this returns is sent as
+             * `{ ok: true, data }`.
+             */
+            async run(_ctx, params) {
+                failIfRequested(params)
+
+                return {
+                    message: String(params.message),
                     timestamp: new Date().toISOString(),
                 }
             },

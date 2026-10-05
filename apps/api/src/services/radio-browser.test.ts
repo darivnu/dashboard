@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { createTtlCache } from '../lib/cache'
 import { aboutRoutes } from '../modules/about/about.routes'
-import { createFakeRepo } from '../modules/dashboard/dashboard.fakes'
+import { createFakeRepo, noOAuthTokens } from '../modules/dashboard/dashboard.fakes'
 import { createDashboardService } from '../modules/dashboard/dashboard.service'
 import { createDataService } from '../modules/dashboard/data.service'
 import type { CachedWidgetData } from '../modules/dashboard/data.service'
+import { createFakeSubscriptionsRepo } from '../modules/subscriptions/subscriptions.fakes'
 import { registerServices } from './register'
 import { __resetRegistryForTests, registry } from './registry'
 import type { HttpClient } from './types'
@@ -22,16 +23,25 @@ interface RecordedCall {
     headers: Headers
 }
 
-/** Records every request and answers with whatever `reply` returns (or throws). */
+const SEARCH_PATH = '/json/stations/search'
+const PINNED_ID = '79930fba-66b9-42cc-8b40-cf766176a38d'
+const PINNED_PATH = `/json/stations/byuuid/${PINNED_ID}`
+
+/**
+ * Records every request and answers with whatever `reply` returns (or throws).
+ * The lookup of the pinned station has its own reply, an empty list unless a
+ * test sets one, so the other tests see only the station search.
+ */
 function createStubHttp() {
     const calls: RecordedCall[] = []
     let reply: (url: URL) => unknown = () => []
+    let pinnedReply: () => unknown = () => []
 
     const http: HttpClient = {
         async json<T>(url: string, init?: RequestInit): Promise<T> {
             const parsed = new URL(url)
             calls.push({ url: parsed, headers: new Headers(init?.headers) })
-            return reply(parsed) as T
+            return (parsed.pathname === PINNED_PATH ? pinnedReply() : reply(parsed)) as T
         },
     }
 
@@ -41,10 +51,14 @@ function createStubHttp() {
         replyWith(next: (url: URL) => unknown) {
             reply = next
         },
+        replyPinnedWith(next: () => unknown) {
+            pinnedReply = next
+        },
     }
 }
 
 let stub: ReturnType<typeof createStubHttp>
+let repo: ReturnType<typeof createFakeRepo>
 let dashboard: ReturnType<typeof createDashboardService>
 let data: ReturnType<typeof createDataService>
 
@@ -53,9 +67,15 @@ beforeEach(() => {
     registerServices('development')
 
     stub = createStubHttp()
-    const repo = createFakeRepo()
+    repo = createFakeRepo()
     dashboard = createDashboardService(repo)
-    data = createDataService({ repo, http: stub.http, cache: createTtlCache<CachedWidgetData>() })
+    data = createDataService({
+        repo,
+        subscriptions: createFakeSubscriptionsRepo(),
+        http: stub.http,
+        tokens: noOAuthTokens,
+        cache: createTtlCache<CachedWidgetData>(),
+    })
 })
 
 let sequence = 0
@@ -114,10 +134,15 @@ async function fetchStations(params: Record<string, unknown> = {}): Promise<Stat
     return (result.data as { stations: StationOut[] }).stations
 }
 
-/** The single upstream request made so far. */
+function callsTo(pathname: string): RecordedCall[] {
+    return stub.calls.filter((call) => call.url.pathname === pathname)
+}
+
+/** The single station search made so far. */
 function onlyCall(): RecordedCall {
-    expect(stub.calls).toHaveLength(1)
-    return stub.calls[0]!
+    const searches = callsTo(SEARCH_PATH)
+    expect(searches).toHaveLength(1)
+    return searches[0]!
 }
 
 function queryOf(call: RecordedCall): Record<string, string> {
@@ -171,18 +196,83 @@ describe('request', () => {
         })
     })
 
-    test.each([
-        [0, 1],
-        [1, 1],
-        [500, 500],
-        [501, 500],
-    ])('limit %j is clamped to %j (and limit + 10 is requested)', async (limit, expected) => {
-        stub.replyWith(() => stationRows(520))
+    test.each([1, 999])('limit %j is a bound: accepted as is, and limit + 10 is requested', async (limit) => {
+        stub.replyWith(() => stationRows(1019))
 
         const stations = await fetchStations({ limit })
 
-        expect(queryOf(onlyCall()).limit).toBe(String(expected + 10))
-        expect(stations).toHaveLength(expected)
+        expect(queryOf(onlyCall()).limit).toBe(String(limit + 10))
+        expect(stations).toHaveLength(limit)
+    })
+})
+
+describe('limit bounds', () => {
+    test.each([0, 1000, '9999'])('creating an instance with limit %j is 400 INVALID_PARAMS', async (limit) => {
+        await expect(createInstance({ limit })).rejects.toMatchObject({ status: 400, code: 'INVALID_PARAMS' })
+
+        expect(repo.rows).toHaveLength(0)
+        expect(stub.calls).toHaveLength(0)
+    })
+
+    test.each([0, 1000])('updating an instance to limit %j is 400 INVALID_PARAMS and keeps the stored value', async (limit) => {
+        const instance = await createInstance({ limit: 50 })
+
+        const attempt = dashboard.update(ALICE, instance.id, { params: { limit } })
+
+        await expect(attempt).rejects.toMatchObject({ status: 400, code: 'INVALID_PARAMS' })
+        expect(repo.rows[0]!.params).toEqual({ limit: 50 })
+    })
+
+    test.each([1, 999])('updating an instance to limit %j is accepted', async (limit) => {
+        const instance = await createInstance({ limit: 50 })
+
+        const updated = await dashboard.update(ALICE, instance.id, { params: { limit } })
+
+        expect(updated.params).toEqual({ limit })
+    })
+
+    test('an instance stored with an out-of-range limit is invalid_config, with no upstream request', async () => {
+        // Straight into the repo, bypassing validation: this is a row saved
+        // before the bounds existed.
+        const stored = await repo.insert({
+            userId: ALICE,
+            serviceId: 'radio_browser',
+            widgetId: 'station_map',
+            title: null,
+            params: { limit: 9999 },
+            refreshSeconds: 600,
+            x: 0,
+            y: 0,
+            w: 4,
+            h: 3,
+            enabled: true,
+        })
+
+        expect(await data.getInstanceData(ALICE, stored.id)).toEqual({ ok: false, code: 'invalid_config' })
+        expect(stub.calls).toHaveLength(0)
+    })
+
+    test('editing such an instance back into the range makes it work again', async () => {
+        stub.replyWith(() => stationRows(20))
+        const stored = await repo.insert({
+            userId: ALICE,
+            serviceId: 'radio_browser',
+            widgetId: 'station_map',
+            title: null,
+            params: { limit: 9999 },
+            refreshSeconds: 600,
+            x: 0,
+            y: 0,
+            w: 4,
+            h: 3,
+            enabled: true,
+        })
+
+        await dashboard.update(ALICE, stored.id, { params: { limit: 5 } })
+        const result = await data.getInstanceData(ALICE, stored.id)
+
+        expect(result.ok).toBe(true)
+        expect(queryOf(onlyCall()).limit).toBe('15')
     })
 })
 
@@ -359,6 +449,131 @@ describe('caching', () => {
 
         expect(first.ok).toBe(true)
         expect(second).toEqual(first)
-        expect(stub.calls).toHaveLength(1)
+        expect(callsTo(SEARCH_PATH)).toHaveLength(1)
+        expect(callsTo(PINNED_PATH)).toHaveLength(1)
+    })
+})
+
+describe('pinned station', () => {
+    // The directory entry as it is today: playable, but without coordinates
+    // and far too few clicks to rank.
+    function pinnedRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+        return {
+            stationuuid: PINNED_ID,
+            name: 'Spinning Seal FM',
+            url: 'https://stream.zeno.fm/9q3ez3k3fchvv',
+            url_resolved: 'https://stream.zeno.fm/9q3ez3k3fchvv',
+            favicon: '',
+            hls: 0,
+            clickcount: 2,
+            geo_lat: null,
+            geo_long: null,
+            ...overrides,
+        }
+    }
+
+    test('is looked up by its id, with the User-Agent', async () => {
+        await fetchMap()
+
+        const lookups = callsTo(PINNED_PATH)
+        expect(lookups).toHaveLength(1)
+        expect(lookups[0]!.url.origin).toBe('https://all.api.radio-browser.info')
+        expect(lookups[0]!.url.search).toBe('')
+        expect(lookups[0]!.headers.get('user-agent')).toBe(USER_AGENT)
+    })
+
+    test('is added after the most listened stations, on top of `limit`, at its fixed position', async () => {
+        stub.replyWith(() => stationRows(20))
+        stub.replyPinnedWith(() => [pinnedRow()])
+
+        const stations = await fetchStations({ limit: 3 })
+
+        expect(stations).toHaveLength(4)
+        expect(stations[3]).toEqual({
+            id: PINNED_ID,
+            name: 'Spinning Seal FM',
+            streamUrl: 'https://stream.zeno.fm/9q3ez3k3fchvv',
+            favicon: null,
+            hls: false,
+            lat: 40.423194,
+            lng: -3.710889,
+        })
+    })
+
+    test('keeps its fixed position even if the directory gains coordinates', async () => {
+        stub.replyPinnedWith(() => [pinnedRow({ geo_lat: 59.33, geo_long: 18.07 })])
+
+        const [pinned] = await fetchStations()
+
+        expect(pinned).toMatchObject({ lat: 40.423194, lng: -3.710889 })
+    })
+
+    test('is the only station when the search returns nothing usable', async () => {
+        stub.replyPinnedWith(() => [pinnedRow()])
+
+        expect((await fetchStations()).map((station) => station.id)).toEqual([PINNED_ID])
+    })
+
+    test.each([
+        ['is not found (empty list)', () => []],
+        ['is an unexpected body', () => ({ error: 'nope' })],
+        ['is not an object', () => ['nope']],
+        ['has no https stream', () => [pinnedRow({ url_resolved: 'http://stream.zeno.fm/9q3ez3k3fchvv' })]],
+        ['has no id', () => [pinnedRow({ stationuuid: '' })]],
+    ])('is left out when the lookup %s', async (_label, reply) => {
+        stub.replyWith(() => stationRows(3))
+        stub.replyPinnedWith(reply)
+
+        const stations = await fetchStations()
+
+        expect(stations).toHaveLength(3)
+        expect(stations.map((station) => station.id)).not.toContain(PINNED_ID)
+    })
+
+    test.each([
+        ['an upstream error', new WidgetFetchError('upstream_error', 'Request failed with status 500')],
+        ['a rate limit', new WidgetFetchError('rate_limited', 'Request failed with status 429')],
+        ['an unexpected exception', new Error('boom')],
+    ])('a lookup failing with %s does not fail the widget', async (_label, error) => {
+        stub.replyWith(() => stationRows(3))
+        stub.replyPinnedWith(() => {
+            throw error
+        })
+
+        const result = await fetchMap()
+
+        expect(result.ok).toBe(true)
+        expect(result.ok && (result.data as { stations: StationOut[] }).stations).toHaveLength(3)
+    })
+
+    test('a failing search still fails the widget, whatever the lookup returns', async () => {
+        stub.replyWith(() => {
+            throw new WidgetFetchError('rate_limited', 'Request failed with status 429')
+        })
+        stub.replyPinnedWith(() => [pinnedRow()])
+
+        expect(await fetchMap()).toEqual({ ok: false, code: 'rate_limited' })
+    })
+
+    test('is not repeated when the search already returned it', async () => {
+        const ranked = stationRow({ stationuuid: PINNED_ID, name: 'Spinning Seal FM' })
+        stub.replyWith(() => [stationRow(), ranked, stationRow()])
+        stub.replyPinnedWith(() => [pinnedRow()])
+
+        const stations = await fetchStations()
+
+        expect(stations).toHaveLength(3)
+        expect(stations.filter((station) => station.id === PINNED_ID)).toHaveLength(1)
+    })
+
+    test('is not added when another entry of the search already has its stream', async () => {
+        const sameStream = stationRow({ url_resolved: 'https://stream.zeno.fm/9q3ez3k3fchvv' })
+        stub.replyWith(() => [stationRow(), sameStream])
+        stub.replyPinnedWith(() => [pinnedRow()])
+
+        const stations = await fetchStations()
+
+        expect(stations).toHaveLength(2)
+        expect(stations.map((station) => station.id)).not.toContain(PINNED_ID)
     })
 })
