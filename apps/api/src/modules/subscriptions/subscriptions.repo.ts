@@ -19,6 +19,17 @@ export interface ServiceSubscriptionRepo {
     upsert(userId: string, serviceId: string, credentials: Record<string, unknown>): Promise<ServiceSubscriptionInstance> //create or update a subscription for a user and a service
     delete(userId: string, serviceId: string): Promise<boolean> //delete a subscription for a user and a service
     setStatus(userId: string, serviceId: string, status: SubscriptionStatus): Promise<ServiceSubscriptionInstance | undefined> //update the status of a subscription for a user and a service
+    /**
+     * Locks the row (so no other request, on any server instance, can touch it
+     * meanwhile), hands it to `fn`, and saves the credentials `fn` returns.
+     * `fn` returning null means "nothing to change". Resolves to the row as it
+     * is after that, or undefined when the row doesn't exist (anymore).
+     * Used to refresh OAuth tokens exactly once even with concurrent requests.
+     */
+    updateCredentialsLocked(
+        id: string,
+        fn: (row: ServiceSubscriptionInstance) => Promise<Record<string, unknown> | null>,
+    ): Promise<ServiceSubscriptionInstance | undefined>
 }
 
 //helper funcs:
@@ -78,7 +89,32 @@ export const subscriptionsRepo: ServiceSubscriptionRepo = {
             .where(ownedBy(userId, serviceId)) //where the userId and serviceId match
             .returning()
         return rows[0] //return the updated subscription
-    }
+    },
+
+    //SELECT ... FOR UPDATE inside a transaction: a second caller waits at the select until we commit,
+    //then reads what we saved. The lock is held during fn (an HTTP call to the provider, 10 s max),
+    //which is fine with a pool of 10 connections and refreshes being rare
+    async updateCredentialsLocked(id, fn) {
+        return db.transaction(async (tx) => {
+            const locked = await tx
+                .select()
+                .from(serviceSubscriptions)
+                .where(eq(serviceSubscriptions.id, id))
+                .for('update') //lock the row until the transaction ends
+            const row = locked[0]
+            if (!row) return undefined
+
+            const credentials = await fn(row)
+            if (credentials === null) return row //nothing to change
+
+            const updated = await tx
+                .update(serviceSubscriptions)
+                .set({ credentials, updatedAt: new Date() })
+                .where(eq(serviceSubscriptions.id, id))
+                .returning()
+            return updated[0]
+        })
+    },
 }
 
 

@@ -3,6 +3,8 @@ import { Type } from '@sinclair/typebox'
 import { createTtlCache } from '../../lib/cache'
 import { httpClient } from '../../lib/http'
 import { auth } from '../../plugins/session'
+import { getProvider } from '../../services/oauth/providers'
+import { createTokenManager } from '../../services/oauth/tokens'
 import { subscriptionsRepo } from '../subscriptions/subscriptions.repo'
 import { dashboardRepo } from './dashboard.repo'
 import type { WidgetInstance } from './dashboard.repo'
@@ -19,6 +21,7 @@ const dataService = createDataService({
     repo: dashboardRepo,
     subscriptions: subscriptionsRepo,
     http: httpClient,
+    tokens: createTokenManager({ repo: subscriptionsRepo, getProvider }),
     cache: createTtlCache<CachedWidgetData>(),
 })
 

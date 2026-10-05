@@ -4,7 +4,8 @@ import { AppError } from '../../lib/errors'
 import { validateParams } from '../../services/params'
 import { registry } from '../../services/registry'
 import { WidgetFetchError } from '../../services/types'
-import type { FetchCtx, HttpClient, WidgetFetchErrorCode } from '../../services/types'
+import type { FetchCtx, HttpClient, ServiceAuth, WidgetFetchErrorCode } from '../../services/types'
+import type { TokenManager } from '../../services/oauth/tokens'
 import type { ServiceSubscriptionInstance, ServiceSubscriptionRepo } from '../subscriptions/subscriptions.repo'
 import type { DashboardRepo } from './dashboard.repo'
 
@@ -22,13 +23,15 @@ export interface DataServiceDeps {
     /** Only the two methods used here, so tests can pass a minimal fake. */
     subscriptions: Pick<ServiceSubscriptionRepo, 'find' | 'setStatus'>
     http: HttpClient
+    /** Gives oauth2 widgets their access token (refreshing it when needed). */
+    tokens: Pick<TokenManager, 'getAccessToken'>
     cache: TtlCache<CachedWidgetData>
     /** Injectable so tests can assert on fetchedAt. */
     now?: () => Date
 }
 
 export function createDataService(deps: DataServiceDeps) {
-    const { repo, subscriptions, http, cache } = deps
+    const { repo, subscriptions, http, tokens, cache } = deps
     const now = deps.now ?? (() => new Date())
 
     /**
@@ -43,6 +46,19 @@ export function createDataService(deps: DataServiceDeps) {
         } catch (error) {
             console.error(`Could not flag the ${serviceId} subscription as needs_reauth`, error)
         }
+    }
+
+    //what the widget gets depends on the auth kind: nothing extra, its stored apiKey fields,
+    //or a way to get an OAuth token. The token itself is only fetched if the widget asks for it
+    function buildCtx(auth: ServiceAuth, subscription: ServiceSubscriptionInstance | undefined): FetchCtx {
+        if (!subscription) return { http }
+        if (auth.kind === 'oauth2') {
+            const provider = auth.provider
+            return { http, getAccessToken: () => tokens.getAccessToken(subscription, provider) }
+        }
+        // The cast is safe: subscribe() validated the credentials against
+        // service.auth.fields, which only allows string and integer values.
+        return { http, credentials: subscription.credentials as Record<string, string | number> }
     }
 
     return {
@@ -74,11 +90,7 @@ export function createDataService(deps: DataServiceDeps) {
                 const cached = cache.get(key)
                 if (cached) return { ok: true, data: cached.data, fetchedAt: cached.fetchedAt }
 
-                // The cast is safe: subscribe() validated the credentials against
-                // service.auth.fields, which only allows string and integer values.
-                const ctx: FetchCtx = subscription
-                    ? { http, credentials: subscription.credentials as Record<string, string | number> }
-                    : { http }
+                const ctx = buildCtx(service.auth, subscription)
 
                 const data = await widget.fetch(ctx, params)
                 const fetchedAt = now()

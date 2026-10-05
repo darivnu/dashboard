@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { createTtlCache } from '../lib/cache'
 import { AppError } from '../lib/errors'
-import { createFakeRepo } from '../modules/dashboard/dashboard.fakes'
+import { createFakeRepo, noOAuthTokens } from '../modules/dashboard/dashboard.fakes'
 import { createDashboardService } from '../modules/dashboard/dashboard.service'
 import { createDataService } from '../modules/dashboard/data.service'
 import type { CachedWidgetData } from '../modules/dashboard/data.service'
@@ -41,6 +41,7 @@ beforeEach(() => {
         repo,
         subscriptions: subscriptionsRepo,
         http: fakeHttp,
+        tokens: noOAuthTokens,
         cache: createTtlCache<CachedWidgetData>(),
     })
 })

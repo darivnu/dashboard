@@ -21,6 +21,8 @@ import type { ServiceSubscriptionInstance, ServiceSubscriptionRepo } from './sub
  */
 export function createFakeSubscriptionsRepo(): ServiceSubscriptionRepo & { rows: ServiceSubscriptionInstance[] } {
     const rows: ServiceSubscriptionInstance[] = [] //our pretend database table
+    //stand-in for the row lock: for each row id, the promise of whoever holds it last
+    const locks = new Map<string, Promise<void>>()
 
     //same as ownedBy() in the real repo: find the row of this user for this service
     function owned(userId: string, serviceId: string): ServiceSubscriptionInstance | undefined {
@@ -75,6 +77,30 @@ export function createFakeSubscriptionsRepo(): ServiceSubscriptionRepo & { rows:
 
             Object.assign(row, { status, updatedAt: new Date() })
             return row
+        },
+
+        //like SELECT ... FOR UPDATE: callers for the same id queue up and run one at a time
+        async updateCredentialsLocked(id, fn) {
+            const previous = locks.get(id) ?? Promise.resolve()
+            let release!: () => void
+            const mine = new Promise<void>((resolve) => { release = resolve })
+            const tail = previous.then(() => mine)
+            locks.set(id, tail) //the next caller waits for us
+
+            await previous //wait for the caller before us
+            try {
+                const row = rows.find((candidate) => candidate.id === id)
+                if (!row) return undefined
+
+                const credentials = await fn({ ...row }) //a copy, like a fresh row from the database
+                if (credentials === null) return row
+
+                Object.assign(row, { credentials, updatedAt: new Date() })
+                return row
+            } finally {
+                release()
+                if (locks.get(id) === tail) locks.delete(id) //nobody queued behind us
+            }
         },
     }
 }

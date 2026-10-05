@@ -1,9 +1,10 @@
 import '../../config/env.fakes'
 import { afterEach, describe, expect, spyOn, test } from 'bun:test'
 import { OAuth2RequestError } from 'arctic'
+import { describeOAuthError, isPermanentOAuthError } from './errors'
 
 // providers.ts reads env while loading; import it after the fake env is in place.
-const { createGitHubProvider, describeOAuthError, getProvider, isPermanentOAuthError } = await import('./providers')
+const { createGitHubProvider, getProvider } = await import('./providers')
 
 const config = { clientId: 'client-id', clientSecret: 'client-secret' }
 

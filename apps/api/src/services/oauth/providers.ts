@@ -5,7 +5,7 @@
 ** providers
 */
 
-import { GitHub, OAuth2RequestError } from 'arctic'
+import { GitHub } from 'arctic'
 import { env, type OAuthClientConfig } from '../../config/env'
 import type { OAuthCredentials } from '../types'
 import type { OAuthProviderId } from './ids'
@@ -116,20 +116,4 @@ export function getProvider(id: OAuthProviderId): OAuthProvider | null {
         instances.set(id, factories[id]())
     }
     return instances.get(id) ?? null
-}
-
-//error codes meaning the grant itself is dead (revoked, expired, already used): retrying won't help,
-//the user has to connect again. GitHub uses its own "bad_refresh_token" instead of the standard "invalid_grant"
-const PERMANENT_CODES = new Set(['invalid_grant', 'bad_refresh_token'])
-
-export function isPermanentOAuthError(error: unknown): boolean {
-    return error instanceof OAuth2RequestError && PERMANENT_CODES.has(error.code)
-}
-
-//safe description of an error for the logs: the name, plus the OAuth code when there is one
-//never log the error object itself, arctic errors can carry the provider's response body
-export function describeOAuthError(error: unknown): string {
-    if (error instanceof OAuth2RequestError) return `OAuth2RequestError (${error.code})`
-    if (error instanceof Error) return error.name
-    return typeof error
 }
