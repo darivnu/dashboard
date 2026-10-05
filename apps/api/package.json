@@ -1,6 +1,7 @@
 {
     "name": "api",
     "private": true,
+    "type": "module",
     "scripts": {
         "dev": "bun run migrate && bun --watch src/server.ts",
         "build": "bun build src/server.ts src/db/migrate.ts --target bun --outdir dist",
