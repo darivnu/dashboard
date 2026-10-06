@@ -107,6 +107,47 @@ const key = String(ctx.credentials?.apiKey)
 The key is stored encrypted, never sent back to the browser, and `fetch()` is not even
 called until the user has given one.
 
+#### Actions: things the user triggers (optional)
+
+A widget shows data on a timer. An **action** goes the other way: something the user does on
+demand, like starring a repository or reporting a play. Declare them next to `widgets`:
+
+```ts
+actions: [
+    {
+        id: 'ping',
+        name: 'Ping',
+        description: 'Sends a message and gets it back with a timestamp',
+        params: [{ name: 'message', label: 'Message to send back', type: 'string', required: true }],
+        rateLimit: { max: 5, windowSeconds: 60 },
+        async run(ctx, params) {
+            return { message: String(params.message), timestamp: new Date().toISOString() }
+        },
+    },
+],
+```
+
+There is no route to write. One route runs every action of every service:
+`POST /api/services/:serviceId/actions/:actionId` with the body `{ "params": { ... } }`.
+
+- **`params`** follow the same rules as widget params and are validated before `run()`.
+  Bad input is a 400 `INVALID_PARAMS`.
+- **`rateLimit`** is optional: at most `max` calls per `windowSeconds`, counted per user and
+  per action. The call over the limit gets a 429 with a `Retry-After` header and `run()` is
+  not called. A call with invalid params still counts. Without `rateLimit` the action is not
+  limited, so set one on anything that calls an upstream. The registry refuses at boot a
+  `max` or `windowSeconds` that is not an integer ≥ 1.
+- **`run()`** follows the same rules as `fetch()`: use `ctx.http`, and throw
+  `WidgetFetchError`. `invalid_config` becomes a 400 `INVALID_PARAMS`; the other three codes
+  become `200 { ok: false, code }`. On success the answer is `{ ok: true, data }`.
+- **Nothing is cached.** Two identical calls run twice.
+- **Only `none` services can run actions for now.** An action of an `apiKey` or `oauth2`
+  service answers `{ ok: false, code: 'needs_reauth' }` without calling `run()`.
+
+Actions are listed in `GET /api/catalog` under each service's `actions`; `/about.json` does
+not mention them. The commented reference is `ping` in
+`apps/api/src/services/definitions/mock.ts`.
+
 ### Step 3: the frontend widget
 
 Create `apps/web/src/components/widgets/<service>/<widget>/` with two files. Copy

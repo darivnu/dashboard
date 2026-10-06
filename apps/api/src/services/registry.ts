@@ -41,6 +41,15 @@ function assertValidBounds(scope: string, params: ParamDef[]): void {
     }
 }
 
+// A hidden param never reaches a form, so nobody could give a required one its value.
+function assertHiddenParamsFillable(scope: string, params: ParamDef[]): void {
+    for (const param of params) {
+        if (param.hidden && param.required && param.default === undefined) {
+            throw new Error(`${scope}: hidden param "${param.name}" cannot be required without a default`)
+        }
+    }
+}
+
 function assertValidRefresh(scope: string, refresh: WidgetRefresh): void {
     if (refresh.min < 5) {
         throw new Error(`${scope}: refresh.min must be >= 5, got ${refresh.min}`)
@@ -75,6 +84,7 @@ function assertValidService(def: ServiceDef): void {
 
         assertUniqueParams(scope, widget.params)
         assertValidBounds(scope, widget.params)
+        assertHiddenParamsFillable(scope, widget.params)
         assertValidRefresh(scope, widget.refresh)
     }
 

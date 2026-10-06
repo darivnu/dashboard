@@ -12,7 +12,15 @@ vi.mock('../auth', () => ({
         logout: vi.fn(),
     }),
 }))
-vi.mock('react-router', () => ({ useNavigate: () => vi.fn() }))
+// The page also reads the address for the answer of an account connection
+// (?connected= / ?oauth_error=); these tests open it with a bare address.
+vi.mock('react-router', () => {
+    const noSearchParams = new URLSearchParams()
+    return {
+        useNavigate: () => vi.fn(),
+        useSearchParams: () => [noSearchParams, vi.fn()],
+    }
+})
 
 const services = [
     {

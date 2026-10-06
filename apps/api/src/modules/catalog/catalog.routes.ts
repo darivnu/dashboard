@@ -19,6 +19,9 @@ const paramBase = {
     required: t.Boolean({
         description: 'When true, creating an instance without this param is rejected with 400',
     }),
+    hidden: t.Optional(t.Boolean({
+        description: 'True for a param the widget sets by itself: a configuration form must not show it, and must send back the stored value unchanged when it saves the others. Absent for an ordinary param',
+    })),
 }
 
 const paramSchema = t.Union([
@@ -128,6 +131,8 @@ function toParam(param: ParamDef) {
         name: param.name,
         label: param.label,
         required: param.required ?? false,
+        // Only present when true, like an undeclared default.
+        hidden: param.hidden ? true : undefined,
     }
 
     if (param.type === 'string') {

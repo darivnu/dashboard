@@ -18,6 +18,9 @@ export const apiMock = {
     /** receives the `{ service }` given to `api.subscriptions({ service })` */
     subscriptionByService: vi.fn(),
     subscribe: vi.fn(),
+    /** receives the `{ serviceId, actionId }` given to `api.services(...).actions(...)` */
+    actionTarget: vi.fn(),
+    runAction: vi.fn(),
 }
 
 export const apiModule = {
@@ -41,6 +44,12 @@ export const apiModule = {
             apiMock.subscriptionByService(params)
             return { post: apiMock.subscribe }
         },
+        services: (service: { serviceId: string }) => ({
+            actions: (action: { actionId: string }) => {
+                apiMock.actionTarget({ ...service, ...action })
+                return { post: apiMock.runAction }
+            },
+        }),
     },
 }
 

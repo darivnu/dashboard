@@ -73,9 +73,13 @@ export default function InstanceForm({
         },
     ]
 
+    // A hidden param is one the widget sets by itself (a choice made inside
+    // it), so it gets no field here.
+    const visibleParams = widget.params.filter((param) => !param.hidden)
+
     const [title, setTitle] = useState(initial.title ?? '')
     const [paramValues, setParamValues] = useState(() =>
-        initialValues(widget.params, initial.params),
+        initialValues(visibleParams, initial.params),
     )
     const [displayValues, setDisplayValues] = useState<ParamValues>({
         refreshSeconds: String(initial.refreshSeconds),
@@ -89,7 +93,7 @@ export default function InstanceForm({
 
     async function handleSubmit(event: FormEvent) {
         event.preventDefault()
-        const params = validateParams(widget.params, paramValues)
+        const params = validateParams(visibleParams, paramValues)
         const display = validateParams(displayFields, displayValues)
         setParamErrors(params.ok ? {} : params.errors)
         setDisplayErrors(display.ok ? {} : display.errors)
@@ -100,7 +104,10 @@ export default function InstanceForm({
         try {
             await onSubmit({
                 title: title.trim() || null,
-                params: params.params,
+                // Saving replaces every param, so the hidden ones go back
+                // as they were stored; otherwise editing the title would
+                // wipe what the widget had saved.
+                params: { ...hiddenValues(), ...params.params },
                 refreshSeconds: Number(display.params.refreshSeconds),
                 w: Number(display.params.w),
                 h: Number(display.params.h),
@@ -110,6 +117,15 @@ export default function InstanceForm({
         } finally {
             setSubmitting(false)
         }
+    }
+
+    function hiddenValues(): InstanceParams {
+        const kept: InstanceParams = {}
+        for (const param of widget.params) {
+            const value = initial.params[param.name]
+            if (param.hidden && value !== undefined) kept[param.name] = value
+        }
+        return kept
     }
 
     const titleId = `${idPrefix}-title`
@@ -130,7 +146,7 @@ export default function InstanceForm({
 
             <ParamForm
                 idPrefix={`${idPrefix}-param`}
-                params={widget.params}
+                params={visibleParams}
                 values={paramValues}
                 errors={paramErrors}
                 onChange={(name, value) =>

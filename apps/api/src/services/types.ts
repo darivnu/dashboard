@@ -4,6 +4,14 @@ interface ParamDefBase {
     name: string
     label: string
     required?: boolean
+    /**
+     * Keeps the param out of the configuration form. For a value the widget
+     * writes by itself (a choice made inside it) rather than one the user
+     * types: it is still validated and stored like any other param, and the
+     * catalog still lists it, flagged, so a form knows to skip it. A hidden
+     * param cannot be required without a default, since nobody could fill it.
+     */
+    hidden?: boolean
 }
 
 interface IntegerParamDef extends ParamDefBase {

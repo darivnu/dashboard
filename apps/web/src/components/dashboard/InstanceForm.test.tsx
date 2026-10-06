@@ -223,3 +223,86 @@ test('Cancel calls onCancel and does not submit', async () => {
     expect(onCancel).toHaveBeenCalledTimes(1)
     expect(onSubmit).not.toHaveBeenCalled()
 })
+
+// A hidden param is one the widget sets by itself, such as a choice made
+// inside it.
+const boosterOpener: CatalogWidget = {
+    id: 'booster_opener',
+    name: 'Booster opener',
+    description: 'Open booster packs',
+    params: [
+        {
+            name: 'set',
+            label: 'Collection',
+            type: 'string',
+            required: false,
+            default: 'base1',
+            hidden: true,
+        },
+        {
+            name: 'booster',
+            label: 'Booster',
+            type: 'string',
+            required: false,
+            hidden: true,
+        },
+    ],
+    refresh: { default: 3600, min: 600 },
+}
+
+test('a hidden param gets no field; a widget with only hidden ones has no settings', () => {
+    setup({ widget: boosterOpener })
+
+    expect(screen.queryByRole('textbox', { name: 'Collection' })).toBeNull()
+    expect(screen.queryByRole('textbox', { name: 'Booster' })).toBeNull()
+    expect(screen.getByText('This widget has no settings.')).toBeVisible()
+})
+
+test('a new widget sends no hidden param, leaving the default to the server', async () => {
+    const { onSubmit, user } = setup({ widget: boosterOpener })
+
+    await user.click(field.submit())
+
+    expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ params: {} }),
+    )
+})
+
+test('saving an existing widget sends its hidden params back unchanged', async () => {
+    const { onSubmit, user } = setup({
+        widget: boosterOpener,
+        initial: {
+            ...fresh,
+            params: { set: 'A1', booster: 'boo_A1-pikachu' },
+        },
+        submitLabel: 'Save',
+    })
+
+    await retype(user, field.title(), 'My packs')
+    await user.click(field.submit('Save'))
+
+    expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+            title: 'My packs',
+            params: { set: 'A1', booster: 'boo_A1-pikachu' },
+        }),
+    )
+})
+
+test('a hidden param is kept next to the visible ones', async () => {
+    const mixed: CatalogWidget = {
+        ...stationMap,
+        params: [...stationMap.params, boosterOpener.params[0]],
+    }
+    const { onSubmit, user } = setup({
+        widget: mixed,
+        initial: { ...fresh, params: { limit: 50, set: 'sv01' } },
+    })
+
+    await retype(user, field.limit(), '80')
+    await user.click(field.submit())
+
+    expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ params: { set: 'sv01', limit: 80 } }),
+    )
+})
