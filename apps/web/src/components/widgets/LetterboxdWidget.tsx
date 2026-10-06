@@ -19,14 +19,16 @@ export default function LetterboxdWidget({ instanceId, refreshSeconds }: WidgetP
 
     const fetchData = () => {
         api.dashboard.instances({ id: instanceId }).data.get().then(({ data: res, error: err }) => {
-            if (err) {
+            if (err || !res) {
                 setError('Failed to fetch')
                 return
             }
-            if (res && 'data' in res) {
-                setFilms((res.data as { films: Film[] }).films)
-                setError(null)
+            if (!res.ok) {
+                setError(res.code)
+                return
             }
+            setFilms((res.data as { films: Film[] }).films)
+            setError(null)
         })
     }
 

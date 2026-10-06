@@ -5,6 +5,7 @@ import FreeGames from './widgets/epic-games/free-games/FreeGames'
 import { parseFreeGames } from './widgets/epic-games/free-games/parse'
 import NotificationsWidget from './widgets/github/notifications/NotificationsWidget'
 import { parseNotifications } from './widgets/github/notifications/parse'
+import LetterboxdWidget from './widgets/LetterboxdWidget'
 import EchoWidget from './widgets/mock/echo/EchoWidget'
 import { parseEcho } from './widgets/mock/echo/parse'
 import ApodWidget from './widgets/nasa/apod/ApodWidget'
@@ -142,6 +143,11 @@ const entries: Record<string, WidgetEntry> = {
         legacy: AdviceWidget,
         defaultSize: { w: 4, h: 2 },
         minSize: { w: 2, h: 1 },
+    },
+    'letterboxd/recent_films': {
+        legacy: LetterboxdWidget,
+        defaultSize: { w: 4, h: 5 },
+        minSize: { w: 3, h: 3 },
     },
     'random_fox/random_fox': fox,
     'nasa/apod': apod,

@@ -8,6 +8,7 @@ import {
 } from './widgetRegistry'
 import AdviceWidget from './widgets/AdviceWidget'
 import FreeGames from './widgets/epic-games/free-games/FreeGames'
+import LetterboxdWidget from './widgets/LetterboxdWidget'
 import EchoWidget from './widgets/mock/echo/EchoWidget'
 import BoosterOpener from './widgets/pokemon-tcg/booster-opener/BoosterOpener'
 import StationMap from './widgets/radio-browser/station-map/StationMap'
@@ -77,6 +78,11 @@ describe('getWidgetEntry', () => {
     test('the advice widget is registered as a legacy widget', () => {
         const entry = getWidgetEntry('advice_slip', 'random_advice')
         expect('legacy' in entry && entry.legacy).toBe(AdviceWidget)
+    })
+
+    test('the letterboxd widget is registered as a legacy widget', () => {
+        const entry = getWidgetEntry('letterboxd', 'recent_films')
+        expect('legacy' in entry && entry.legacy).toBe(LetterboxdWidget)
     })
 
     test('mock/echo and mock_key/secret_echo share the new echo widget', () => {
