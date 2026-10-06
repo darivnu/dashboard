@@ -24,6 +24,7 @@ export const httpClient: HttpClient = {
         } catch (cause) {
             throw new WidgetFetchError('upstream_error', `Request to ${url} failed`, { cause })
         }
+        
 
         if (!response.ok) {
             throw new WidgetFetchError(
@@ -37,5 +38,23 @@ export const httpClient: HttpClient = {
         } catch (cause) {
             throw new WidgetFetchError('upstream_error', `Response from ${url} was not valid JSON`, { cause })
         }
+    },
+
+        async text(url: string, init?: RequestInit): Promise<string> {
+        let response: Response
+        try {
+            response = await fetch(url, { ...init, signal: AbortSignal.timeout(TIMEOUT_MS) })
+        } catch (cause) {
+            throw new WidgetFetchError('upstream_error', `Request to ${url} failed`, { cause })
+        }
+
+        if (!response.ok) {
+            throw new WidgetFetchError(
+                codeForStatus(response.status),
+                `Request to ${url} failed with status ${response.status}`,
+            )
+        }
+
+        return await response.text()
     },
 }

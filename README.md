@@ -93,3 +93,4 @@ Both or neither: only one of the two set stops the API at boot.
 Notes:
 - An OAuth App accepts a single callback URL, so production needs its own app, with the deployed API's URL in the callback.
 - Tokens are stored encrypted with `MASTER_KEY`; changing that key means every user has to connect again.
+- 
