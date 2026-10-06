@@ -32,7 +32,7 @@ const EXTRA_ROWS = 10
 
 /** Bounds and default of the `limit` param: how many bubbles the map shows. */
 const MIN_STATIONS = 1
-const MAX_STATIONS = 999
+const MAX_STATIONS = 3000
 const DEFAULT_STATIONS = 200
 
 /**
