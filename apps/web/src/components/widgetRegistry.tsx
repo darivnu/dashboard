@@ -11,6 +11,8 @@ import ApodWidget from './widgets/nasa/apod/ApodWidget'
 import { parseApod } from './widgets/nasa/apod/parse'
 import NeoWidget from './widgets/nasa/neows/NeoWidget'
 import { parseNeo } from './widgets/nasa/neows/parse'
+import BoosterOpener from './widgets/pokemon-tcg/booster-opener/BoosterOpener'
+import { parseBoosterOpener } from './widgets/pokemon-tcg/booster-opener/parse'
 import { parseStationMap } from './widgets/radio-browser/station-map/parse'
 import StationMap from './widgets/radio-browser/station-map/StationMap'
 import FoxWidget from './widgets/random_fox/random_fox/FoxWidget'
@@ -123,6 +125,14 @@ const githubNotifications = defineWidget({
     minSize: { w: 3, h: 3 },
 })
 
+// Sized for a whole pack: eleven cards in two rows under the picker.
+const boosterOpener = defineWidget({
+    component: BoosterOpener,
+    parse: parseBoosterOpener,
+    defaultSize: { w: 6, h: 7 },
+    minSize: { w: 4, h: 5 },
+})
+
 // El mapa: cada clave es "serviceId/widgetId"
 const entries: Record<string, WidgetEntry> = {
     'radio_browser/station_map': stationMap,
@@ -138,6 +148,7 @@ const entries: Record<string, WidgetEntry> = {
     'nasa/neows': neo,
     'github/notifications': githubNotifications,
     'epic_games/free_games': freeGames,
+    'pokemon_tcg/booster_opener': boosterOpener,
 }
 
 export function getWidgetEntry(

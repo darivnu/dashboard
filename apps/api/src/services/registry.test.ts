@@ -86,6 +86,22 @@ describe('registry', () => {
         expect(() => registry.register(def)).toThrow(/refresh\.min must be >= 5/)
     })
 
+    test('rejects a hidden param that is required without a default: no form could fill it', () => {
+        const stuck: ParamDef = { name: 'choice', label: 'Choice', type: 'string', hidden: true, required: true }
+        const def = service({ widgets: [widget({ params: [stuck] })] })
+
+        expect(() => registry.register(def)).toThrow(/hidden param "choice" cannot be required without a default/)
+    })
+
+    test('accepts a hidden param that is optional, or required with a default', () => {
+        const params: ParamDef[] = [
+            { name: 'choice', label: 'Choice', type: 'string', hidden: true },
+            { name: 'other', label: 'Other', type: 'string', hidden: true, required: true, default: 'a' },
+        ]
+
+        expect(() => registry.register(service({ widgets: [widget({ params })] }))).not.toThrow()
+    })
+
     test('rejects refresh.min greater than refresh.default', () => {
         const def = service({ widgets: [widget({ refresh: { default: 10, min: 20 } })] })
 

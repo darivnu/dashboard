@@ -70,6 +70,34 @@ describe('GET /catalog', () => {
         expect(body).toEqual({ services: [] })
     })
 
+    test('a hidden param is flagged, an ordinary one carries no flag', async () => {
+        registry.register({
+            id: 'cards',
+            name: 'Cards',
+            auth: { kind: 'none' },
+            widgets: [
+                {
+                    id: 'opener',
+                    name: 'Opener',
+                    description: 'Opens packs',
+                    params: [
+                        { name: 'set', type: 'string', label: 'Collection', hidden: true, default: 'base1' },
+                        { name: 'title', type: 'string', label: 'Title' },
+                    ],
+                    refresh: { default: 3600, min: 300 },
+                    fetch: async () => ({}),
+                },
+            ],
+        })
+
+        const { body } = await getCatalog(loggedIn)
+        const [set, title] = body.services[0].widgets[0].params
+
+        expect(set).toEqual({ name: 'set', label: 'Collection', required: false, type: 'string', default: 'base1', hidden: true })
+        expect(title).toEqual({ name: 'title', label: 'Title', required: false, type: 'string' })
+        expect('hidden' in title).toBe(false)
+    })
+
     test('a registered ServiceDef appears with no other change', async () => {
         const def: ServiceDef = {
             id: 'weather',

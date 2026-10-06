@@ -9,6 +9,7 @@ import {
 import AdviceWidget from './widgets/AdviceWidget'
 import FreeGames from './widgets/epic-games/free-games/FreeGames'
 import EchoWidget from './widgets/mock/echo/EchoWidget'
+import BoosterOpener from './widgets/pokemon-tcg/booster-opener/BoosterOpener'
 import StationMap from './widgets/radio-browser/station-map/StationMap'
 
 describe('defineWidget', () => {
@@ -114,6 +115,16 @@ describe('getWidgetEntry', () => {
         expect(() => entry.parse({ current: 'none', upcoming: [] })).toThrow()
     })
 
+    test('the booster opener is registered 6 x 7, at least 4 x 5', () => {
+        const entry = getWidgetEntry('pokemon_tcg', 'booster_opener')
+        if ('legacy' in entry) throw new Error('expected a widget-base entry')
+        expect(entry.component).toBe(BoosterOpener)
+        expect(entry.defaultSize).toEqual({ w: 6, h: 7 })
+        expect(entry.minSize).toEqual({ w: 4, h: 5 })
+        expect(entry.parse({ sets: [] })).toEqual({ sets: [] })
+        expect(() => entry.parse({ sets: 'many' })).toThrow()
+    })
+
     test('every entry has a default size no smaller than its minimum', () => {
         for (const [service, widget] of [
             ['advice_slip', 'random_advice'],
@@ -123,6 +134,7 @@ describe('getWidgetEntry', () => {
             ['random_fox', 'random_fox'],
             ['nasa', 'apod'],
             ['epic_games', 'free_games'],
+            ['pokemon_tcg', 'booster_opener'],
             ['nope', 'nothing'],
         ]) {
             const { defaultSize, minSize } = getWidgetEntry(service, widget)
