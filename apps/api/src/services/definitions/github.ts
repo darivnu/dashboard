@@ -19,6 +19,51 @@ type GitHubNotification = {
     repository?: { full_name?: string; html_url?: string }
 }
 
+// The contribution graph of a profile page is not in the REST API, only in GraphQL.
+// Without from/to, contributionsCollection covers the last year, like the profile does
+const CALENDAR_QUERY = `query {
+    viewer {
+        login
+        contributionsCollection {
+            contributionCalendar {
+                totalContributions
+                weeks { contributionDays { date weekday contributionCount contributionLevel } }
+            }
+        }
+    }
+}`
+
+// GitHub's quartiles, turned into the 0-4 scale the profile grid uses for its five shades of green
+const LEVELS: Record<string, number> = {
+    NONE: 0,
+    FIRST_QUARTILE: 1,
+    SECOND_QUARTILE: 2,
+    THIRD_QUARTILE: 3,
+    FOURTH_QUARTILE: 4,
+}
+
+type GitHubCalendarResponse = {
+    errors?: { message?: string }[]
+    data?: {
+        viewer?: {
+            login?: string
+            contributionsCollection?: {
+                contributionCalendar?: {
+                    totalContributions?: number
+                    weeks?: {
+                        contributionDays?: {
+                            date?: string
+                            weekday?: number
+                            contributionCount?: number
+                            contributionLevel?: string
+                        }[]
+                    }[]
+                }
+            }
+        }
+    }
+}
+
 // The API links to itself (https://api.github.com/repos/o/r/pulls/1), not to the page a person
 // wants (https://github.com/o/r/pull/1). Issues and pull requests are easy to convert;
 // for anything else (releases, discussions, ...) we fall back to the repository page
@@ -52,7 +97,7 @@ export const githubService: ServiceDef = {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         Accept: 'application/vnd.github+json',
-                        'X-GitHub-Api-Version': '2022-11-28',
+                        'X-GitHub-Api-Version': '2022-11-28', //thats the default api version
                     },
                 })
                 if (!Array.isArray(body))
@@ -79,6 +124,49 @@ export const githubService: ServiceDef = {
                     count: items.length,
                     hasMore: items.length === PAGE_SIZE, //a full page: there may be more than we counted
                     items: items.slice(0, limit),
+                }
+            },
+        },
+        {
+            id: 'contribution_stat_card',
+            name: 'Contribution Stat card',
+            description: 'Your GitHub contribution stats for the last year',
+            params: [],
+            refresh: { default: 3600, min: 300 },
+            async fetch(ctx) {
+                if (!ctx.getAccessToken)
+                    throw new WidgetFetchError('needs_reauth', 'GitHub: no account connected')
+                const token = await ctx.getAccessToken()
+
+                //GraphQL answers 200 even when the query fails, so errors have to be read from the body
+                const body = await ctx.http.json<GitHubCalendarResponse>('https://api.github.com/graphql', {
+                    method: 'POST',
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ query: CALENDAR_QUERY }),
+                })
+                if (body.errors?.length)
+                    throw new WidgetFetchError('upstream_error', `GitHub: ${body.errors[0]?.message ?? 'query failed'}`)
+                const calendar = body.data?.viewer?.contributionsCollection?.contributionCalendar
+                if (!calendar || !Array.isArray(calendar.weeks))
+                    throw new WidgetFetchError('upstream_error', 'GitHub: unexpected body')
+
+                //one array per week (a column of the grid), each day sorted Sunday to Saturday
+                const weeks = calendar.weeks.map((week) =>
+                    (week.contributionDays ?? []).map((day) => ({
+                        date: day.date ?? '',
+                        weekday: day.weekday ?? 0,
+                        count: day.contributionCount ?? 0,
+                        level: LEVELS[day.contributionLevel ?? 'NONE'] ?? 0, //0 (none) to 4 (most), the frontend picks the colours
+                    })),
+                )
+
+                return {
+                    login: body.data?.viewer?.login ?? '',
+                    total: calendar.totalContributions ?? 0,
+                    weeks,
                 }
             },
         },
