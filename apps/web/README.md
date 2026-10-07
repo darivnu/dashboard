@@ -22,12 +22,15 @@ React single-page application that lets authenticated users build a personal das
 ```
 src/
 ├── api.ts                  # Eden client — typed bridge to the backend
-├── auth.tsx                # AuthProvider context (login, logout, session persistence)
-├── App.tsx                 # Root component — routing + AuthProvider wrapper
+├── auth.tsx                # AuthProvider context (login, logout that empties the query cache, session persistence)
+├── App.tsx                 # Root component — AuthProvider + router; AppRoutes holds the route table
 ├── main.tsx                # Entry point — QueryClientProvider + App + global CSS
 ├── index.css               # Tailwind v4 import (@import "tailwindcss")
 ├── components/
-│   ├── ProtectedRoute.tsx  # Redirects to /login when no session exists
+│   ├── ProtectedRoute.tsx  # Private pages: redirects to /login when no session exists
+│   ├── GuestRoute.tsx      # Login and register: redirects to /dashboard when a session exists
+│   ├── layout/
+│   │   └── AppShell.tsx        # Top bar (app name, page action, account menu) + <main>
 │   ├── WidgetGrid.tsx      # 12-column grid, one WidgetShell per instance
 │   ├── widgetRegistry.tsx  # Maps "serviceId/widgetId" to a component, a parser and sizes
 │   ├── dashboard/          # The widget base
@@ -42,7 +45,7 @@ src/
 │   │   ├── validateParams.ts   # Client-side check of those params (required, integer, min/max)
 │   │   ├── CatalogLoader.tsx   # Loading / error wrapper around the catalog query
 │   │   └── layout.ts           # Grid maths: sort, pack, move, next free slot
-│   ├── ui/                 # Alert, Button, Dialog, Field, Input, Spinner
+│   ├── ui/                 # Alert, Button, Dialog, Field, Input, Menu, Spinner
 │   └── widgets/            # One folder per service, one subfolder per widget
 │       ├── AdviceWidget.tsx            # legacy widget (fetches for itself)
 │       ├── mock/echo/
@@ -51,7 +54,9 @@ src/
 │   ├── Register.tsx        # Account creation form → "check your email" message, links to /login
 │   ├── Login.tsx           # Login form → useAuth().login() → redirects to /dashboard, links to /register
 │   ├── VerifyEmail.tsx     # Target of the link in the verification email
-│   └── Dashboard.tsx       # Header + WidgetGrid + add / edit / delete dialogs
+│   ├── Dashboard.tsx       # AppShell + WidgetGrid + add / edit / delete dialogs
+│   ├── Profile.tsx         # Placeholder inside AppShell
+│   └── Settings.tsx        # Placeholder inside AppShell
 └── test/                   # Vitest setup, Eden client mock, renderWithQuery helper
 ```
 
@@ -105,19 +110,45 @@ Docker is not used in production. `docker compose up --build` is a way to run th
 2. **Verify email** — the link in the email opens `/verify-email?token=...`, which posts the token to `POST /api/auth/verify-email` once and offers a resend (`POST /api/auth/resend-verification`) when it is rejected. Without SMTP settings the API prints the email to its logs instead (see the root README).
 3. **Login** — `POST /api/auth/login` sets an `httpOnly` session cookie and returns the user object. `useAuth().login()` resolves with nothing on success and throws the `ApiError` of a refused login.
 4. **Session persistence** — on page load, `AuthProvider` calls `GET /api/auth/me`. The browser sends the cookie automatically; if valid, the user stays logged in. If the request gets no answer, `loading` still ends, with no user.
-5. **Logout** — `POST /api/auth/logout` clears the cookie.
+5. **Logout** — "Log out" in the account menu calls `POST /api/auth/logout`, which clears the cookie. `useAuth().logout()` then empties the TanStack Query cache, so the next user of the same tab never sees the previous user's widgets, and the app goes to `/login`. `login()` empties it as well, for a request that answered after the logout. When the logout fails, the user stays logged in and the page shows "Couldn't log out." with the reason.
 
 The three pages are built with `ui/Field`, `ui/Input` and `ui/Button`, and link to each other. A failure is shown in a `ui/Alert` above the fields with the API's own message (`Invalid email or password`, `Verify your email before logging in`, `An account with this email already exists`), or "Couldn't reach the dashboard server." when the request got no answer. The submit button is disabled while a request is pending.
 
 The session cookie is `httpOnly` — JavaScript cannot read it, which protects against XSS attacks.
 
+## Navigation
+
+There is no global nav. What a visitor sees depends on the session:
+
+- **Logged out** — only the auth pages, with no bar. They link to each other ("Sign up" / "Log in").
+- **Logged in** — every page is wrapped in `AppShell`, which draws one top bar: the app name (a link to `/dashboard`), the action of the current page, and the account menu.
+
+The account menu is a round avatar with the first letter of the user's email. It opens a `ui/Menu` showing the full email, **Profile** (`/profile`), **Settings** (`/settings`) and **Log out**. `/profile` and `/settings` are placeholder pages for now.
+
+A page owns its action: it passes its buttons through the `actions` prop and the bar knows nothing about them.
+
+```tsx
+<AppShell actions={<Button onClick={() => setAdding(true)}>Add Widget</Button>}>
+    ...
+</AppShell>
+```
+
+On narrow screens the bar stays on one row: the app name is cut with an ellipsis, the action and the avatar keep their size, and the menu panel never gets wider than the screen.
+
+`ui/Menu` is hand-made, with no dependency. It opens on click, Enter or Space and focuses its first item; the arrow keys, Home and End move between items; Enter or Space chooses one; Escape closes it and returns the focus to the trigger; a press outside, the focus leaving (Tab), or choosing an item closes it too.
+
 ## Route protection
 
-`ProtectedRoute` wraps private pages (e.g. `/dashboard`). It checks `useAuth()`:
+| Route | Wrapper | Logged out | Logged in |
+|---|---|---|---|
+| `/login`, `/register` | `GuestRoute` | the form | redirect to `/dashboard` |
+| `/verify-email` | none | the page | the page |
+| `/dashboard`, `/profile`, `/settings` | `ProtectedRoute` | redirect to `/login` | the page |
+| `/` and any unknown address | `ProtectedRoute` around a redirect | redirect to `/login` | redirect to `/dashboard` |
 
-- `loading` → shows "Loading…"
-- `user === null` → redirects to `/login`
-- `user` exists → renders the page
+Both wrappers read `useAuth()`. While `loading` (the answer of `GET /api/auth/me` has not arrived) they show a `ui/Spinner` and nothing else, so neither a form nor the bar flashes. Every redirect uses `replace`, and so do the navigations after a login and a logout, so the Back button never returns to a page that would redirect again. There is no 404 page.
+
+The address is kept while the session loads, so the return of an OAuth connection (`/dashboard?connected=github`) still reaches the dashboard with its query string.
 
 ## Dashboard & widget base
 
@@ -195,7 +226,7 @@ cd apps/web
 bun run test       # vitest run
 ```
 
-Tests run in jsdom with Testing Library. `src/test/apiMock.ts` is a stand-in for the Eden client and `src/test/renderWithQuery.tsx` renders a component inside a fresh `QueryClient`.
+Tests run in jsdom with Testing Library. `src/test/apiMock.ts` is a stand-in for the Eden client and `src/test/renderWithQuery.tsx` renders a component inside a fresh `QueryClient`. `AuthProvider` needs that query client around it. `App.test.tsx` renders the exported `AppRoutes` inside a `MemoryRouter` to test the redirects.
 
 ## Lint and format
 

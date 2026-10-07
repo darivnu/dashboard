@@ -1,19 +1,21 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, expect, test, vi } from 'vitest'
 import { AuthProvider } from '../auth'
 import { apiMock, fail, ok, resetApiMock } from '../test/apiMock'
+import { renderWithQuery } from '../test/renderWithQuery'
 import Login from './Login'
 
 vi.mock('../api', async () => (await import('../test/apiMock')).apiModule)
 
 const user = { id: 'u1', email: 'me@example.com', role: 'user' }
 
-// The real AuthProvider over the fake API, and a stand-in for the dashboard
-// route so a navigation shows up as text.
+// The real AuthProvider over the fake API (inside a query client, which it
+// empties on logout), and a stand-in for the dashboard route so a navigation
+// shows up as text.
 function renderLogin() {
-    return render(
+    return renderWithQuery(
         <AuthProvider>
             <MemoryRouter initialEntries={['/login']}>
                 <Routes>
