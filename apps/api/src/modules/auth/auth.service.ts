@@ -4,6 +4,8 @@ import type { Mailer } from '../../lib/mailer'
 import { DUMMY_PASSWORD_HASH, hashPassword, verifyPassword } from '../../lib/password'
 import { generateToken, hashToken } from '../../lib/tokens'
 import type { SessionUser } from '../../plugins/session'
+import type { ServiceSubscriptionInstance } from '../subscriptions/subscriptions.repo'
+import type { SubscriptionsService } from '../subscriptions/subscriptions.service'
 import type { AuthRepo, User } from './auth.repo'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -20,6 +22,8 @@ export interface PublicUser {
 export interface AuthServiceDeps {
   repo: AuthRepo
   mailer: Mailer
+  /** Only what deleting an account needs: read the subscriptions, then revoke their tokens. */
+  subscriptions: Pick<SubscriptionsService, 'list' | 'revokeAll'>
   /** Clock. Tests inject a fixed one to drive the resend cooldown. */
   now?: () => Date
 }
@@ -50,7 +54,7 @@ function errorSummary(error: unknown): string {
   return String(error)
 }
 
-export function createAuthService({ repo, mailer, now = () => new Date() }: AuthServiceDeps) {
+export function createAuthService({ repo, mailer, subscriptions, now = () => new Date() }: AuthServiceDeps) {
   /**
    * Stores a fresh verification token and mails the link. A failed send is
    * logged, not thrown: the account and the token exist, and the user can
@@ -161,6 +165,31 @@ export function createAuthService({ repo, mailer, now = () => new Date() }: Auth
       async logout(token: unknown): Promise<void> {
           if (typeof token !== 'string' || token === '') return
           await repo.deleteSessionByTokenHash(hashToken(token))
+      },
+
+      /**
+       * Erases the account for good. The order matters:
+       * 1. read the subscriptions while they exist, their tokens included;
+       * 2. delete the user, which cascades to everything stored for them;
+       * 3. ask the providers to revoke those tokens. Awaited, because the
+       *    serverless runtime runs nothing after the response is sent.
+       * A failed revocation is logged by revokeAll and never fails the
+       * deletion. A user that is already gone (concurrent request) resolves too.
+       * Subscriptions that cannot be read (a credential the current MASTER_KEY
+       * cannot decrypt) do not block the erasure either: the account is
+       * deleted and nothing is revoked.
+       */
+      async deleteAccount(userId: string): Promise<void> {
+          let rows: ServiceSubscriptionInstance[] = []
+          try {
+              rows = await subscriptions.list(userId)
+          } catch (error) {
+              // The name only: a parse error's message can quote part of a decrypted credential.
+              const name = error instanceof Error ? error.name : typeof error
+              console.error(`Could not read the subscriptions of user ${userId} before deleting the account, no token will be revoked: ${name}`)
+          }
+          await repo.deleteUser(userId)
+          await subscriptions.revokeAll(rows)
       },
 
       me(user: SessionUser): PublicUser {

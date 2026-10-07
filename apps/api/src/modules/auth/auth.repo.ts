@@ -92,6 +92,17 @@ async createSession(input: {
 async deleteSessionByTokenHash(tokenHash: string): Promise<void> {
     await db.delete(sessions).where(eq(sessions.tokenHash, tokenHash))
 },
+
+/**
+ * One statement: every table that points at users does so with ON DELETE
+ * cascade (db/schema.ts), so Postgres removes the sessions, tokens,
+ * subscriptions and widget instances with the user, all or nothing.
+ * Returns false when the user was already gone.
+ */
+async deleteUser(userId: string): Promise<boolean> {
+    const rows = await db.delete(users).where(eq(users.id, userId)).returning({ id: users.id })
+    return rows.length > 0
+},
 }
 
 export type AuthRepo = typeof authRepo

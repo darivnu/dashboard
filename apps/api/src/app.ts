@@ -37,6 +37,7 @@ if (isDev) {
                 description: 'Widgets from third-party services on a personal dashboard. Log in with POST /api/auth/login; the session cookie it sets authenticates every other call.',
             },
             tags: [
+                { name: 'Auth', description: 'Accounts and sessions: register, verify the email, log in, log out, delete the account' },
                 { name: 'Catalog', description: 'Services and widgets that can be placed on a dashboard' },
                 { name: 'Dashboard', description: 'The current user\'s widget instances, their layout and their data' },
                 { name: 'Subscriptions', description: 'The current user\'s service subscriptions (credentials are write-only)' },
