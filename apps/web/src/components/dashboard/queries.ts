@@ -182,3 +182,33 @@ export function useSetApiKey() {
         },
     })
 }
+
+export function useDisconnectService() {
+    const client = useQueryClient()
+    return useMutation({
+        mutationFn: async (serviceId: string) => {
+            const result = await api
+                .subscriptions({ service: serviceId })
+                .delete()
+            // 404: already disconnected (from another tab, say), which is
+            // what was asked for.
+            if (result.error?.status !== 404) unwrap(result)
+            return serviceId
+        },
+        onSuccess: (serviceId) => {
+            // Removed, not invalidated: a widget keeps showing invalidated
+            // data, with only "Refresh failed" next to it.
+            const instances =
+                client.getQueryData<Instance[]>(queryKeys.instances) ?? []
+            for (const instance of instances) {
+                if (instance.serviceId !== serviceId) continue
+                client.removeQueries({
+                    queryKey: queryKeys.widgetData(instance.id),
+                })
+            }
+            // The catalog carries the subscription status. Returned, so the
+            // mutation stays pending until the new status is on screen.
+            return client.invalidateQueries({ queryKey: queryKeys.catalog })
+        },
+    })
+}
