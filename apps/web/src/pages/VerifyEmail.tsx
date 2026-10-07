@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { api } from '../api'
+import { errorMessage, unwrap } from '../components/dashboard/queries'
+import Alert from '../components/ui/Alert'
+import Button from '../components/ui/Button'
+import Field from '../components/ui/Field'
+import Input from '../components/ui/Input'
 
 type Status = 'verifying' | 'verified' | 'invalid'
 
@@ -15,6 +20,8 @@ export default function VerifyEmail() {
     )
     const [email, setEmail] = useState('')
     const [resent, setResent] = useState(false)
+    const [resendError, setResendError] = useState<string | null>(null)
+    const [pending, setPending] = useState(false)
 
     // A token is single-use, so the request must go out exactly once even when
     // React StrictMode runs the effect twice in development.
@@ -31,9 +38,20 @@ export default function VerifyEmail() {
 
     const handleResend = async (e: React.FormEvent) => {
         e.preventDefault()
-        // Always answers ok, whether or not the address has an unverified account.
-        await api.auth['resend-verification'].post({ email })
-        setResent(true)
+        if (pending) return
+
+        setResendError(null)
+        setPending(true)
+        try {
+            // Always answers ok, whether or not the address has an unverified
+            // account; only a request that did not go through fails here.
+            unwrap(await api.auth['resend-verification'].post({ email }))
+            setResent(true)
+        } catch (error) {
+            setResendError(errorMessage(error))
+        } finally {
+            setPending(false)
+        }
     }
 
     return (
@@ -74,26 +92,39 @@ export default function VerifyEmail() {
                         ) : (
                             <form
                                 onSubmit={handleResend}
-                                className="flex flex-col gap-4"
+                                className="flex flex-col text-left"
                             >
-                                <p className="text-gray-300">
+                                <p className="text-gray-300 text-center mb-4">
                                     Enter your email to receive a new link.
                                 </p>
-                                <input
-                                    type="email"
-                                    placeholder="Email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    required
-                                    maxLength={254}
-                                    className="p-3 rounded-lg bg-gray-700 text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-blue-500"
-                                />
-                                <button
+                                {resendError && (
+                                    <Alert className="mb-4">
+                                        {resendError}
+                                    </Alert>
+                                )}
+                                <Field
+                                    label="Email"
+                                    htmlFor="verify-email-address"
+                                >
+                                    <Input
+                                        id="verify-email-address"
+                                        type="email"
+                                        autoComplete="email"
+                                        value={email}
+                                        onChange={(e) =>
+                                            setEmail(e.target.value)
+                                        }
+                                        required
+                                        maxLength={254}
+                                    />
+                                </Field>
+                                <Button
                                     type="submit"
-                                    className="p-3 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-500 transition"
+                                    disabled={pending}
+                                    className="mt-1"
                                 >
                                     Send a new link
-                                </button>
+                                </Button>
                             </form>
                         )}
                     </>
