@@ -132,7 +132,7 @@ export const githubService: ServiceDef = {
             name: 'Contribution Stat card',
             description: 'Your GitHub contribution stats for the last year',
             params: [],
-            refresh: { default: 3600, min: 300 },
+            refresh: { default: 3600, min: 150 },
             async fetch(ctx) {
                 if (!ctx.getAccessToken)
                     throw new WidgetFetchError('needs_reauth', 'GitHub: no account connected')
