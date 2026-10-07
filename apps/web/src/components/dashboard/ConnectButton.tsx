@@ -14,6 +14,8 @@ type Props = {
     available: boolean
     label: 'Connect' | 'Reconnect'
     variant?: 'ghost' | 'secondary'
+    /** accessible name, where "Connect" alone would not say which service */
+    ariaLabel?: string
 }
 
 const UNAVAILABLE = "Connecting this service isn't set up on the server yet."
@@ -25,11 +27,13 @@ export default function ConnectButton({
     available,
     label,
     variant = 'ghost',
+    ariaLabel,
 }: Props) {
     const button = (
         <Button
             variant={variant}
             disabled={!available}
+            aria-label={ariaLabel}
             onClick={() => window.location.assign(connectUrl(serviceId))}
         >
             {label}

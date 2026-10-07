@@ -120,7 +120,7 @@ export default function Dashboard() {
                 instances={list}
             />
             <ApiKeyDialog
-                instance={apiKeyFor}
+                serviceId={apiKeyFor?.serviceId ?? null}
                 onClose={() => setApiKeyId(null)}
             />
             <ConfirmDialog

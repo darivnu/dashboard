@@ -35,7 +35,7 @@ src/
 │   ├── widgetRegistry.tsx  # Maps "serviceId/widgetId" to a component, a parser and sizes
 │   ├── dashboard/          # The widget base
 │   │   ├── types.ts            # Instance, catalog and body types, derived from the Eden client
-│   │   ├── queries.ts          # TanStack Query hooks (instances, catalog, create/update/delete, layout)
+│   │   ├── queries.ts          # TanStack Query hooks (instances, catalog, create/update/delete, layout, set key, disconnect)
 │   │   ├── useWidgetData.ts    # Fetches and polls one instance's data
 │   │   ├── WidgetShell.tsx     # Card around every widget: title, actions, loading and error states
 │   │   ├── WidgetErrorBoundary.tsx
@@ -44,6 +44,8 @@ src/
 │   │   ├── ParamForm.tsx       # One field per param declared in the catalog
 │   │   ├── validateParams.ts   # Client-side check of those params (required, integer, min/max)
 │   │   ├── CatalogLoader.tsx   # Loading / error wrapper around the catalog query
+│   │   ├── ApiKeyDialog.tsx    # Sets or replaces the API key of one service
+│   │   ├── ConnectButton.tsx   # Starts the OAuth connection of one service
 │   │   └── layout.ts           # Grid maths: sort, pack, move, next free slot
 │   ├── ui/                 # Alert, Button, Dialog, Field, Input, Menu, Spinner
 │   └── widgets/            # One folder per service, one subfolder per widget
@@ -55,7 +57,7 @@ src/
 │   ├── Login.tsx           # Login form → useAuth().login() → redirects to /dashboard, links to /register
 │   ├── VerifyEmail.tsx     # Target of the link in the verification email
 │   ├── Dashboard.tsx       # AppShell + WidgetGrid + add / edit / delete dialogs
-│   ├── Profile.tsx         # Placeholder inside AppShell
+│   ├── Profile.tsx         # Account info + the credentials of every service (keys, connections)
 │   └── Settings.tsx        # Placeholder inside AppShell
 └── test/                   # Vitest setup, Eden client mock, renderWithQuery helper
 ```
@@ -123,7 +125,7 @@ There is no global nav. What a visitor sees depends on the session:
 - **Logged out** — only the auth pages, with no bar. They link to each other ("Sign up" / "Log in").
 - **Logged in** — every page is wrapped in `AppShell`, which draws one top bar: the app name (a link to `/dashboard`), the action of the current page, and the account menu.
 
-The account menu is a round avatar with the first letter of the user's email. It opens a `ui/Menu` showing the full email, **Profile** (`/profile`), **Settings** (`/settings`) and **Log out**. `/profile` and `/settings` are placeholder pages for now.
+The account menu is a round avatar with the first letter of the user's email. It opens a `ui/Menu` showing the full email, **Profile** (`/profile`), **Settings** (`/settings`) and **Log out**. `/settings` is a placeholder page for now.
 
 A page owns its action: it passes its buttons through the `actions` prop and the bar knows nothing about them.
 
@@ -136,6 +138,28 @@ A page owns its action: it passes its buttons through the `actions` prop and the
 On narrow screens the bar stays on one row: the app name is cut with an ellipsis, the action and the avatar keep their size, and the menu panel never gets wider than the screen.
 
 `ui/Menu` is hand-made, with no dependency. It opens on click, Enter or Space and focuses its first item; the arrow keys, Home and End move between items; Enter or Space chooses one; Escape closes it and returns the focus to the trigger; a press outside, the focus leaving (Tab), or choosing an item closes it too.
+
+## Profile page
+
+`/profile` has two sections.
+
+- **Account** — the email and "Member since <date>" (day/month/year), both from `useAuth()`.
+- **Services** — one row per catalog service that needs credentials (`auth.kind` `apiKey` or `oauth2`), connected or not, in catalog order. The list comes from `GET /api/catalog`, so a new service or provider appears without touching the page. Services with `auth.kind: 'none'` are not listed.
+
+| `auth.kind` | `subscription` | Status | Actions |
+|---|---|---|---|
+| `apiKey` | `null` | No key | Set key |
+| `apiKey` | `active` | Key set | Replace key, Remove key |
+| `apiKey` | `needs_reauth` / `revoked` | Key rejected | Replace key, Remove key |
+| `oauth2` | `null` | Not connected | Connect |
+| `oauth2` | `active` | Connected | Reconnect, Disconnect |
+| `oauth2` | `needs_reauth` / `revoked` | Needs reconnecting | Reconnect, Disconnect |
+
+"Set key" / "Replace key" open `ApiKeyDialog`, which takes a `serviceId` (the dashboard passes the service of the card that was clicked). "Connect" / "Reconnect" are `ConnectButton`; it is disabled, with an explanation, when the server has no credentials for the provider, and "Disconnect" still works then. Every row button carries the service in its accessible name (`aria-label="Disconnect GitHub"`, `"Replace key for NASA"`).
+
+"Remove key" / "Disconnect" ask for confirmation first, saying how many of the user's widgets belong to the service. `useDisconnectService()` then calls `DELETE /api/subscriptions/:service`. On success it refreshes the catalog and **removes** the cached data of that service's widgets, so that back on the dashboard they show the "Connect" / "Set API key" prompt instead of their last data. A 404 (already disconnected, from another tab) is treated as a success. The dialog stays busy until the refreshed catalog is on screen, and the keyboard focus then moves to the row's remaining button. The widgets themselves are kept.
+
+After connecting an account from this page the browser lands on `/dashboard`, where the result is shown: that is where the API's OAuth callback redirects.
 
 ## Route protection
 

@@ -1,9 +1,10 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, expect, test, vi } from 'vitest'
+import { useDisconnectService } from '../components/dashboard/queries'
 import { apiMock, fail, makeInstance, ok, resetApiMock } from '../test/apiMock'
-import { renderWithQuery } from '../test/renderWithQuery'
+import { renderHookWithQuery, renderWithQuery } from '../test/renderWithQuery'
 import Dashboard from './Dashboard'
 
 vi.mock('../api', async () => (await import('../test/apiMock')).apiModule)
@@ -282,3 +283,127 @@ test('Add Widget opens the add dialog, and a created widget appears', async () =
     )
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })
+
+test('API key on a card opens the key dialog for the service of that widget', async () => {
+    apiMock.catalog.mockResolvedValue(
+        ok({
+            services: [
+                ...services,
+                {
+                    id: 'nasa',
+                    name: 'NASA',
+                    auth: {
+                        kind: 'apiKey',
+                        fields: [
+                            {
+                                name: 'apiKey',
+                                label: 'NASA API key',
+                                type: 'string',
+                                required: true,
+                            },
+                        ],
+                    },
+                    subscription: null,
+                    widgets: [],
+                },
+            ],
+        }),
+    )
+    apiMock.listInstances.mockResolvedValue(
+        ok({
+            instances: [
+                makeInstance({ title: 'A' }),
+                makeInstance({ title: 'Space', serviceId: 'nasa', x: 4 }),
+            ],
+        }),
+    )
+    apiMock.subscribe.mockResolvedValue(
+        ok({ serviceId: 'nasa', status: 'active' }),
+    )
+    renderDashboard()
+    await screen.findByRole('article', { name: 'Space' })
+
+    expect(
+        card('A').queryByRole('button', { name: 'API key' }),
+    ).not.toBeInTheDocument()
+    await userEvent.click(
+        await card('Space').findByRole('button', { name: 'API key' }),
+    )
+    const dialog = within(
+        await screen.findByRole('dialog', { name: 'API key' }),
+    )
+    expect(
+        await dialog.findByText('This key is used by all your NASA widgets.'),
+    ).toBeVisible()
+
+    await userEvent.type(dialog.getByLabelText(/NASA API key/), 'my-key')
+    await userEvent.click(dialog.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    )
+    expect(apiMock.subscriptionByService).toHaveBeenCalledWith({
+        service: 'nasa',
+    })
+    expect(apiMock.subscribe).toHaveBeenCalledWith({ apiKey: 'my-key' })
+})
+
+// The echo widget stands in for a widget of a service that needs credentials.
+function credentialCatalog(auth: unknown, subscribed: boolean) {
+    return ok({
+        services: [
+            {
+                ...services[0],
+                auth,
+                subscription: subscribed ? { status: 'active' } : null,
+            },
+        ],
+    })
+}
+
+test.each([
+    [
+        'an account',
+        { kind: 'oauth2', provider: 'mock', available: true },
+        'Connect your account to use this widget.',
+        'Connect',
+    ],
+    [
+        'a key',
+        { kind: 'apiKey', fields: [] },
+        'This service needs to be reconnected.',
+        'Set API key',
+    ],
+])(
+    'after disconnecting %s, its widgets ask for it again instead of showing their last data',
+    async (_kind, auth, message, action) => {
+        apiMock.catalog.mockResolvedValue(credentialCatalog(auth, true))
+        apiMock.listInstances.mockResolvedValue(
+            ok({ instances: [makeInstance({ title: 'A' })] }),
+        )
+        const { client } = renderDashboard()
+        await screen.findByRole('article', { name: 'A' })
+        expect(await card('A').findByText('hi')).toBeVisible()
+
+        // What the server answers once the subscription is gone.
+        apiMock.catalog.mockResolvedValue(credentialCatalog(auth, false))
+        apiMock.instanceData.mockResolvedValue(
+            ok({ ok: false, code: 'needs_reauth' }),
+        )
+        apiMock.unsubscribe.mockResolvedValue(ok({ ok: true }))
+        const { result } = renderHookWithQuery(
+            () => useDisconnectService(),
+            client,
+        )
+        await act(() => result.current.mutateAsync('mock'))
+
+        expect(await card('A').findByText(message)).toBeVisible()
+        expect(
+            within(card('A').getByRole('alert')).getByRole('button', {
+                name: action,
+            }),
+        ).toBeVisible()
+        expect(card('A').queryByText('hi')).not.toBeInTheDocument()
+        expect(card('A').queryByText(/Refresh failed/)).not.toBeInTheDocument()
+    },
+)
