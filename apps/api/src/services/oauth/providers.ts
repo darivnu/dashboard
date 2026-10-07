@@ -27,6 +27,7 @@ export interface OAuthProvider {
     exchangeCode(code: string, codeVerifier: string | null): Promise<OAuthCredentials>
     /** The result may come back with `refreshToken: null`: the caller then keeps the old one. */
     refresh?(refreshToken: string): Promise<OAuthCredentials>
+    /** Ends the user's authorization at the provider, so that connecting again asks for consent. */
     revoke?(accessToken: string): Promise<void>
 }
 
@@ -83,10 +84,12 @@ export function createGitHubProvider(config: OAuthClientConfig): OAuthProvider {
             return toCredentials(tokens.data, new Date(), splitGitHubScope)
         },
 
-        //https://docs.github.com/en/rest/apps/oauth-applications#delete-an-app-token
+        //https://docs.github.com/en/rest/apps/oauth-applications#delete-an-app-authorization
+        //the grant and not only the token (/token): with the grant left in place GitHub skips its consent page
+        //on the next connect. It takes every token this GitHub account has for this OAuth app with it
         async revoke(accessToken) {
             const basic = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64')
-            const response = await fetch(`https://api.github.com/applications/${config.clientId}/token`, {
+            const response = await fetch(`https://api.github.com/applications/${config.clientId}/grant`, {
                 method: 'DELETE',
                 headers: {
                     Authorization: `Basic ${basic}`,
@@ -98,7 +101,7 @@ export function createGitHubProvider(config: OAuthClientConfig): OAuthProvider {
                 signal: AbortSignal.timeout(REVOKE_TIMEOUT_MS),
             })
             if (response.status !== 204) {
-                throw new Error(`GitHub token revocation failed with status ${response.status}`)
+                throw new Error(`GitHub authorization revocation failed with status ${response.status}`)
             }
         },
     }

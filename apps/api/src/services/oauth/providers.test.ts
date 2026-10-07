@@ -81,13 +81,14 @@ describe('GitHub adapter', () => {
         expect(String((error as Error).message)).not.toContain('ghr_secret')
     })
 
-    test('revoke sends DELETE with Basic auth and the token in the body', async () => {
+    //the grant, not only the token: with the grant left in place GitHub skips its consent page on the next connect
+    test('revoke deletes the whole authorization: DELETE on /grant with Basic auth and the token in the body', async () => {
         const fetchSpy = stubFetch(null, 204)
 
         await createGitHubProvider(config).revoke!('gho_abc')
 
         const [url, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit]
-        expect(url).toBe('https://api.github.com/applications/client-id/token')
+        expect(url).toBe('https://api.github.com/applications/client-id/grant')
         expect(init.method).toBe('DELETE')
         expect((init.headers as Record<string, string>).Authorization).toBe(
             `Basic ${Buffer.from('client-id:client-secret').toString('base64')}`,
