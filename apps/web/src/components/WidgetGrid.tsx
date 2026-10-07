@@ -22,7 +22,7 @@ export default function WidgetGrid({
         return (
             <div className="flex flex-col items-center justify-center mt-20 gap-3">
                 <span className="text-5xl">📋</span>
-                <p className="text-gray-400 text-lg">No widgets yet</p>
+                <p className="text-gray-600 dark:text-gray-400 text-lg">No widgets yet</p>
                 <p className="text-gray-500 text-sm">Click "Add Widget" to get started</p>
             </div>
         )

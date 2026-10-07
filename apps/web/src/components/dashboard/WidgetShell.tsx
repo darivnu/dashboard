@@ -220,10 +220,10 @@ function Frame({
     return (
         <article
             aria-label={title}
-            className="bg-gray-800 rounded-xl p-4 flex flex-col gap-2 h-full min-h-0"
+            className="bg-white dark:bg-gray-800 rounded-xl p-4 flex flex-col gap-2 h-full min-h-0 shadow-sm dark:shadow-none border border-blue-100 dark:border-transparent"
         >
             <header className="flex flex-wrap justify-between items-center gap-2">
-                <h3 className="text-white font-semibold truncate">{title}</h3>
+                <h3 className="text-gray-900 dark:text-white font-semibold truncate">{title}</h3>
                 <div className="flex items-center gap-1">
                     {status}
                     {onRefresh && (

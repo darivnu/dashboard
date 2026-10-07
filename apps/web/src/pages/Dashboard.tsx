@@ -67,9 +67,9 @@ export default function Dashboard() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-900">
-            <header className="flex justify-between items-center px-6 py-4 border-b border-gray-700">
-                <h1 className="text-xl font-bold text-white">My Dashboard</h1>
+        <div className="min-h-screen bg-blue-50 dark:bg-gray-900">
+            <header className="flex justify-between items-center px-6 py-4 border-b border-blue-100 dark:border-gray-700">
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white">My Dashboard</h1>
                 <Button onClick={() => setAdding(true)}>＋ Add Widget</Button>
             </header>
 

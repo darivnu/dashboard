@@ -27,7 +27,7 @@ export default function Dialog({ open, onClose, title, children }: Props) {
             aria-labelledby={titleId}
             // Fired by Escape and by close(); keeps the parent's state in step.
             onClose={onClose}
-            className="m-auto bg-gray-800 text-white rounded-xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto backdrop:bg-black/50"
+            className="m-auto bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto backdrop:bg-black/50"
         >
             {open && (
                 <>

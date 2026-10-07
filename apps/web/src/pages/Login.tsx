@@ -15,10 +15,8 @@ export default function Login() {
         e.preventDefault()
         setError(null)
         setSubmitting(true)
-
         const success = await login(email, password)
         setSubmitting(false)
-
         if (!success) {
             setError('Invalid email or password.')
             return
@@ -27,12 +25,14 @@ export default function Login() {
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-900 px-4">
+        <div className="min-h-screen flex items-center justify-center bg-blue-50 dark:bg-gray-900 px-4">
             <form
                 onSubmit={handleSubmit}
-                className="bg-gray-800 p-8 rounded-xl w-full max-w-md flex flex-col gap-4"
+                className="bg-white dark:bg-gray-800 p-8 rounded-xl w-full max-w-md flex flex-col gap-4 shadow-sm dark:shadow-none border border-blue-100 dark:border-transparent"
             >
-                <h1 className="text-2xl font-bold text-white text-center">Log in</h1>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white text-center">
+                    Log in
+                </h1>
 
                 {error && <Alert>{error}</Alert>}
 
@@ -44,7 +44,7 @@ export default function Login() {
                     required
                     maxLength={254}
                     disabled={submitting}
-                    className="p-3 rounded-lg bg-gray-700 text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                    className="p-3 rounded-lg bg-blue-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                 />
 
                 <input
@@ -56,7 +56,7 @@ export default function Login() {
                     minLength={8}
                     maxLength={128}
                     disabled={submitting}
-                    className="p-3 rounded-lg bg-gray-700 text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                    className="p-3 rounded-lg bg-blue-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                 />
 
                 <button
