@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { api } from './api'
+import { unwrap } from './components/dashboard/queries'
 
 type User = {
     id: string
@@ -10,7 +11,8 @@ type User = {
 type AuthContextType = {
     user: User | null
     loading: boolean
-    login: (email: string, password: string) => Promise<boolean>
+    /** throws the ApiError of a refused login; a failed request rejects as is */
+    login: (email: string, password: string) => Promise<void>
     logout: () => Promise<void>
 }
 
@@ -21,17 +23,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-        api.auth.me.get().then(({ data }) => {
-            setUser(data ?? null)
-            setLoading(false)
-        })
+        api.auth.me
+            .get()
+            .then(({ data }) => setUser(data ?? null))
+            // No answer at all (network error): same as having no session.
+            .catch(() => setUser(null))
+            .finally(() => setLoading(false))
     }, [])
 
     const login = async (email: string, password: string) => {
-        const { data, error } = await api.auth.login.post({ email, password })
-        if (error) return false
-        setUser(data)
-        return true
+        setUser(unwrap(await api.auth.login.post({ email, password })))
     }
 
     const logout = async () => {

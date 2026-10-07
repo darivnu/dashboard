@@ -48,8 +48,8 @@ src/
 │       ├── mock/echo/
 │       └── radio-browser/station-map/
 ├── pages/
-│   ├── Register.tsx        # Account creation form
-│   ├── Login.tsx           # Login form → useAuth().login() → redirects to /dashboard
+│   ├── Register.tsx        # Account creation form → "check your email" message, links to /login
+│   ├── Login.tsx           # Login form → useAuth().login() → redirects to /dashboard, links to /register
 │   ├── VerifyEmail.tsx     # Target of the link in the verification email
 │   └── Dashboard.tsx       # Header + WidgetGrid + add / edit / delete dialogs
 └── test/                   # Vitest setup, Eden client mock, renderWithQuery helper
@@ -101,11 +101,13 @@ Docker is not used in production. `docker compose up --build` is a way to run th
 
 ## Authentication flow
 
-1. **Register** — `POST /api/auth/register` creates the account and sends a verification email.
+1. **Register** — `POST /api/auth/register` creates the account and sends a verification email. The form is then replaced by "Account created. Check your email to verify your address." and a link to `/login`.
 2. **Verify email** — the link in the email opens `/verify-email?token=...`, which posts the token to `POST /api/auth/verify-email` once and offers a resend (`POST /api/auth/resend-verification`) when it is rejected. Without SMTP settings the API prints the email to its logs instead (see the root README).
-3. **Login** — `POST /api/auth/login` sets an `httpOnly` session cookie and returns the user object.
-4. **Session persistence** — on page load, `AuthProvider` calls `GET /api/auth/me`. The browser sends the cookie automatically; if valid, the user stays logged in.
+3. **Login** — `POST /api/auth/login` sets an `httpOnly` session cookie and returns the user object. `useAuth().login()` resolves with nothing on success and throws the `ApiError` of a refused login.
+4. **Session persistence** — on page load, `AuthProvider` calls `GET /api/auth/me`. The browser sends the cookie automatically; if valid, the user stays logged in. If the request gets no answer, `loading` still ends, with no user.
 5. **Logout** — `POST /api/auth/logout` clears the cookie.
+
+The three pages are built with `ui/Field`, `ui/Input` and `ui/Button`, and link to each other. A failure is shown in a `ui/Alert` above the fields with the API's own message (`Invalid email or password`, `Verify your email before logging in`, `An account with this email already exists`), or "Couldn't reach the dashboard server." when the request got no answer. The submit button is disabled while a request is pending.
 
 The session cookie is `httpOnly` — JavaScript cannot read it, which protects against XSS attacks.
 
