@@ -17,7 +17,7 @@ import { validateParams } from '../../services/params'
 import { registry } from '../../services/registry'
 import { WidgetFetchError } from '../../services/types'
 import type { ServiceDef } from '../../services/types'
-import type { ServiceSubscriptionRepo } from './subscriptions.repo'
+import type { ServiceSubscriptionInstance, ServiceSubscriptionRepo } from './subscriptions.repo'
 
 // How long a user has between clicking Connect and coming back from the provider.
 // The cookie also expires after that, but cookie expiry is up to the browser, so we check it ourselves too.
@@ -167,6 +167,26 @@ export function createSubscriptionsService(
         },
 
         /**
+         * Tells the providers to forget the tokens of all these subscriptions, in
+         * parallel. For an account deletion: the rows are already gone, so the
+         * caller hands over what it read before. Never throws: a failed
+         * revocation is logged by revokeQuietly, like in unsubscribe.
+         */
+        async revokeAll(rows: ServiceSubscriptionInstance[]): Promise<void> {
+            const results = await Promise.allSettled(rows.map(async (row) => {
+                const service = registry.getService(row.serviceId)
+                if (service) //a service removed from the registry has no provider to ask
+                    await revokeQuietly(service, row.credentials)
+            }))
+
+            //revokeQuietly logs a provider that answers badly; this is for what breaks before the call (a provider that can't be built)
+            results.forEach((result, index) => {
+                if (result.status === 'rejected')
+                    console.error(`Could not revoke the ${rows[index]!.serviceId} token at the provider: ${describeOAuthError(result.reason)}`)
+            })
+        },
+
+        /**
          * Step 1 of connecting an oauth2 service: builds the provider URL to send
          * the browser to, and the encrypted value of the oauth_pending cookie
          * that step 2 (finishOAuth) checks.
@@ -230,3 +250,5 @@ export function createSubscriptionsService(
         },
     }
 }
+
+export type SubscriptionsService = ReturnType<typeof createSubscriptionsService>

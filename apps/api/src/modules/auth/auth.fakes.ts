@@ -12,14 +12,20 @@ export function createClock(start: Date) {
     }
 }
 
+function removeWhere<T>(items: T[], matches: (item: T) => boolean): void {
+    for (let index = items.length - 1; index >= 0; index -= 1) {
+        if (matches(items[index]!)) items.splice(index, 1)
+    }
+}
+
 /**
  * Test-only. In-memory stand-in for the Drizzle repo, with the same
- * case-insensitive email rule and one-shot token consumption.
+ * case-insensitive email rule, one-shot token consumption and user cascade.
  */
 export function createFakeAuthRepo(now: () => Date = () => new Date()) {
     const users: User[] = []
     const tokens: UserToken[] = []
-    const sessions: { tokenHash: string }[] = []
+    const sessions: { tokenHash: string; userId: string }[] = []
 
     const repo: AuthRepo = {
         async findUserByEmail(email) {
@@ -80,12 +86,23 @@ export function createFakeAuthRepo(now: () => Date = () => new Date()) {
         },
 
         async createSession(input) {
-            sessions.push({ tokenHash: input.tokenHash })
+            sessions.push({ tokenHash: input.tokenHash, userId: input.userId })
         },
 
         async deleteSessionByTokenHash(tokenHash) {
             const index = sessions.findIndex((session) => session.tokenHash === tokenHash)
             if (index !== -1) sessions.splice(index, 1)
+        },
+
+        async deleteUser(userId) {
+            const index = users.findIndex((user) => user.id === userId)
+            if (index === -1) return false
+
+            users.splice(index, 1)
+            // Mirrors ON DELETE cascade. In place: tests hold on to these arrays.
+            removeWhere(tokens, (token) => token.userId === userId)
+            removeWhere(sessions, (session) => session.userId === userId)
+            return true
         },
     }
 
