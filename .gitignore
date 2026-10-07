@@ -2,7 +2,8 @@ node_modules
 dist
 .env
 bun.lockb
-CONCEPTS.md
+quiz/
+TODO.*
 .vercel
 .env.*
 !.env.example

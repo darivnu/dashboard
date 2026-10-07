@@ -11,21 +11,23 @@ interface Bucket {
 
 const buckets = new Map<string, Bucket>()
 
-function hit(key: string): { limited: boolean; retryAfterSeconds: number } {
+function hit(key: string): { limited: boolean; retryAfterSeconds: number }
+{
     const now = Date.now()
     const bucket = buckets.get(key)
 
-    if (!bucket || bucket.resetAt <= now) {
+    //new bucket because either the first request or the previous window expired
+    if (!bucket || now > bucket.resetAt) {
         buckets.set(key, { count: 1, resetAt: now + WINDOW_MS })
         return { limited: false, retryAfterSeconds: 0 }
     }
 
     bucket.count += 1
     if (bucket.count > MAX_REQUESTS) {
-        return { limited: true, retryAfterSeconds: Math.ceil((bucket.resetAt - now) / 1000) }
+        return { limited: true, retryAfterSeconds: Math.ceil((bucket.resetAt - now) / 1000) } //ceil to round up to the nearest second
     }
 
-    return { limited: false, retryAfterSeconds: 0 }
+    return {limited:false, retryAfterSeconds: 0}
 }
 
 // In-memory fixed-window limiter, keyed by client IP. Single-instance only (out of scope: distributed limiting).

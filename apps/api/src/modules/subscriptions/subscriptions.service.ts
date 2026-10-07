@@ -61,7 +61,7 @@ function readPending(value: string | undefined): PendingOAuth | null {
     if (!value)
         return null
     try {
-        const pending = JSON.parse(decrypt(value)) as Partial<PendingOAuth>
+        const pending = JSON.parse(decrypt(value)) as Partial<PendingOAuth> //partial means we check the shape below, not here
         if (typeof pending.state !== 'string' || typeof pending.serviceId !== 'string'
             || typeof pending.userId !== 'string' || typeof pending.createdAt !== 'number')
             return null
@@ -161,7 +161,6 @@ export function createSubscriptionsService(
             if (!deleted) {
                 throw new AppError(404, 'NOT_FOUND', "This subscription does not exist.") //if the subscription is not found, throw an error
             }
-
             const service = registry.getService(serviceId)
             if (row && service)
                 await revokeQuietly(service, row.credentials)
