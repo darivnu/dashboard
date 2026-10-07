@@ -4,3 +4,6 @@ dist
 bun.lockb
 quiz/
 TODO.*
+.vercel
+.env.*
+!.env.example

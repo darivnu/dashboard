@@ -8,7 +8,9 @@ import {
 } from './widgetRegistry'
 import AdviceWidget from './widgets/AdviceWidget'
 import FreeGames from './widgets/epic-games/free-games/FreeGames'
+import LetterboxdWidget from './widgets/LetterboxdWidget'
 import EchoWidget from './widgets/mock/echo/EchoWidget'
+import BoosterOpener from './widgets/pokemon-tcg/booster-opener/BoosterOpener'
 import StationMap from './widgets/radio-browser/station-map/StationMap'
 
 describe('defineWidget', () => {
@@ -78,6 +80,11 @@ describe('getWidgetEntry', () => {
         expect('legacy' in entry && entry.legacy).toBe(AdviceWidget)
     })
 
+    test('the letterboxd widget is registered as a legacy widget', () => {
+        const entry = getWidgetEntry('letterboxd', 'recent_films')
+        expect('legacy' in entry && entry.legacy).toBe(LetterboxdWidget)
+    })
+
     test('mock/echo and mock_key/secret_echo share the new echo widget', () => {
         const echo = getWidgetEntry('mock', 'echo')
         const secret = getWidgetEntry('mock_key', 'secret_echo')
@@ -114,6 +121,16 @@ describe('getWidgetEntry', () => {
         expect(() => entry.parse({ current: 'none', upcoming: [] })).toThrow()
     })
 
+    test('the booster opener is registered 6 x 7, at least 4 x 5', () => {
+        const entry = getWidgetEntry('pokemon_tcg', 'booster_opener')
+        if ('legacy' in entry) throw new Error('expected a widget-base entry')
+        expect(entry.component).toBe(BoosterOpener)
+        expect(entry.defaultSize).toEqual({ w: 6, h: 7 })
+        expect(entry.minSize).toEqual({ w: 4, h: 5 })
+        expect(entry.parse({ sets: [] })).toEqual({ sets: [] })
+        expect(() => entry.parse({ sets: 'many' })).toThrow()
+    })
+
     test('every entry has a default size no smaller than its minimum', () => {
         for (const [service, widget] of [
             ['advice_slip', 'random_advice'],
@@ -123,6 +140,7 @@ describe('getWidgetEntry', () => {
             ['random_fox', 'random_fox'],
             ['nasa', 'apod'],
             ['epic_games', 'free_games'],
+            ['pokemon_tcg', 'booster_opener'],
             ['nope', 'nothing'],
         ]) {
             const { defaultSize, minSize } = getWidgetEntry(service, widget)
