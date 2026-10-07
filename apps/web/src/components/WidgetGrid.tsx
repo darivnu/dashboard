@@ -20,14 +20,15 @@ export default function WidgetGrid({
 }: Props) {
     if (instances.length === 0) {
         return (
-            <p className="text-gray-400 text-center text-lg mt-12">
-                No widgets yet — click "Add Widget" to start.
-            </p>
+            <div className="flex flex-col items-center justify-center mt-20 gap-3">
+                <span className="text-5xl">📋</span>
+                <p className="text-gray-400 text-lg">No widgets yet</p>
+                <p className="text-gray-500 text-sm">Click "Add Widget" to get started</p>
+            </div>
         )
     }
 
     return (
-        // 12 columns, 96 px rows, 16 px gaps; a single column on narrow screens.
         <div className="grid grid-cols-1 md:grid-cols-12 auto-rows-[96px] gap-4">
             {sortByPosition(instances).map((instance) => (
                 <div

@@ -224,46 +224,36 @@ function Frame({
         >
             <header className="flex flex-wrap justify-between items-center gap-2">
                 <h3 className="text-white font-semibold truncate">{title}</h3>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
                     {status}
                     {onRefresh && (
-                        <Button variant="ghost" onClick={onRefresh}>
-                            Refresh
+                        <Button variant="ghost" onClick={onRefresh} aria-label="Refresh">
+                            🔄
                         </Button>
                     )}
                     {auth?.kind === 'apiKey' && (
-                        <Button variant="ghost" onClick={onSetApiKey}>
-                            API key
+                        <Button variant="ghost" onClick={onSetApiKey} aria-label="Set API key">
+                            🔑
                         </Button>
                     )}
                     {auth?.kind === 'oauth2' && (
-                        <ConnectButton
-                            serviceId={instance.serviceId}
-                            available={auth.available}
-                            label={
-                                service?.subscription ? 'Reconnect' : 'Connect'
-                            }
-                        />
+                    <ConnectButton
+                        serviceId={instance.serviceId}
+                        available={auth.available}
+                        label={service?.subscription ? 'Reconnect' : 'Connect'}
+                    />
                     )}
-                    <Button variant="ghost" onClick={onEdit}>
-                        Edit
+                    <Button variant="ghost" onClick={onEdit} aria-label="Edit">
+                        ✏️
                     </Button>
-                    <Button
-                        variant="ghost"
-                        aria-label="Move left"
-                        onClick={() => onMove('left')}
-                    >
-                        ←
+                    <Button variant="ghost" aria-label="Move left" onClick={() => onMove('left')}>
+                        ◀
                     </Button>
-                    <Button
-                        variant="ghost"
-                        aria-label="Move right"
-                        onClick={() => onMove('right')}
-                    >
-                        →
+                    <Button variant="ghost" aria-label="Move right" onClick={() => onMove('right')}>
+                        ▶
                     </Button>
-                    <Button variant="dangerGhost" onClick={onDelete}>
-                        Delete
+                    <Button variant="dangerGhost" onClick={onDelete} aria-label="Delete">
+                        ✕
                     </Button>
                 </div>
             </header>

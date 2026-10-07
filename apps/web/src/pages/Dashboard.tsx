@@ -1,6 +1,4 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router'
-import { useAuth } from '../auth'
 import AddWidgetDialog from '../components/dashboard/AddWidgetDialog'
 import ApiKeyDialog from '../components/dashboard/ApiKeyDialog'
 import ConfirmDialog from '../components/dashboard/ConfirmDialog'
@@ -25,9 +23,6 @@ import Spinner from '../components/ui/Spinner'
 import WidgetGrid from '../components/WidgetGrid'
 
 export default function Dashboard() {
-    const { user, logout } = useAuth()
-    const navigate = useNavigate()
-
     const instances = useInstances()
     const saveLayout = useSaveLayout()
     const remove = useDeleteInstance()
@@ -47,11 +42,6 @@ export default function Dashboard() {
     const deletingName = deleting
         ? (deleting.title ?? `${deleting.serviceId} / ${deleting.widgetId}`)
         : ''
-
-    const handleLogout = async () => {
-        await logout()
-        navigate('/login')
-    }
 
     const handleMove = (instance: Instance, direction: 'left' | 'right') => {
         const changes = layoutChanges(list, move(list, instance.id, direction))
@@ -78,15 +68,9 @@ export default function Dashboard() {
 
     return (
         <div className="min-h-screen bg-gray-900">
-            <header className="flex justify-between items-center p-4 bg-gray-800 text-white">
-                <h1 className="text-xl font-bold">My Dashboard</h1>
-                <div className="flex items-center gap-4">
-                    <Button onClick={() => setAdding(true)}>Add Widget</Button>
-                    <span className="text-gray-300">{user?.email}</span>
-                    <Button variant="danger" onClick={handleLogout}>
-                        Logout
-                    </Button>
-                </div>
+            <header className="flex justify-between items-center px-6 py-4 border-b border-gray-700">
+                <h1 className="text-xl font-bold text-white">My Dashboard</h1>
+                <Button onClick={() => setAdding(true)}>＋ Add Widget</Button>
             </header>
 
             <main className="p-6">
