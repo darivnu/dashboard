@@ -1,5 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router'
 import { beforeEach, expect, test, vi } from 'vitest'
 import { apiMock, fail, makeInstance, ok, resetApiMock } from '../test/apiMock'
 import { renderWithQuery } from '../test/renderWithQuery'
@@ -12,15 +13,16 @@ vi.mock('../auth', () => ({
         logout: vi.fn(),
     }),
 }))
-// The page also reads the address for the answer of an account connection
-// (?connected= / ?oauth_error=); these tests open it with a bare address.
-vi.mock('react-router', () => {
-    const noSearchParams = new URLSearchParams()
-    return {
-        useNavigate: () => vi.fn(),
-        useSearchParams: () => [noSearchParams, vi.fn()],
-    }
-})
+
+// The top bar holds links and the page reads the address for the answer of an
+// account connection (?connected= / ?oauth_error=), so it needs a router.
+function renderDashboard() {
+    return renderWithQuery(
+        <MemoryRouter initialEntries={['/dashboard']}>
+            <Dashboard />
+        </MemoryRouter>,
+    )
+}
 
 const services = [
     {
@@ -65,6 +67,15 @@ function card(name: string) {
     return within(screen.getByRole('article', { name }))
 }
 
+// Each card has a <header> of its own. Inside an <article> a browser does not
+// expose it as a banner, but Testing Library counts every <header>, so the
+// ones of the cards are left out by hand.
+function pageBanners() {
+    return screen
+        .getAllByRole('banner')
+        .filter((header) => !header.closest('article'))
+}
+
 beforeEach(() => {
     resetApiMock()
     apiMock.catalog.mockResolvedValue(ok({ services }))
@@ -79,19 +90,51 @@ beforeEach(() => {
 
 test('loads and shows the widgets of the user', async () => {
     apiMock.listInstances.mockResolvedValue(ok({ instances: threeWidgets() }))
-    renderWithQuery(<Dashboard />)
+    renderDashboard()
 
     expect(
         screen.getByRole('status', { name: 'Loading dashboard' }),
     ).toBeVisible()
     await screen.findByRole('article', { name: 'A' })
     expect(titles()).toEqual(['A', 'B', 'C'])
-    expect(screen.getByText('me@example.com')).toBeVisible()
+})
+
+test('has one top bar with the app name, Add Widget and the account menu', async () => {
+    apiMock.listInstances.mockResolvedValue(ok({ instances: threeWidgets() }))
+    renderDashboard()
+    await screen.findByRole('article', { name: 'A' })
+
+    expect(pageBanners()).toHaveLength(1)
+    const bar = within(pageBanners()[0])
+    expect(bar.getByRole('link', { name: 'Dashboard' })).toBeVisible()
+    expect(bar.getByRole('button', { name: 'Add Widget' })).toBeVisible()
+    expect(bar.getByRole('button', { name: 'Account menu' })).toBeVisible()
+})
+
+test('shows no logout button and no email outside the closed menu', async () => {
+    apiMock.listInstances.mockResolvedValue(ok({ instances: threeWidgets() }))
+    renderDashboard()
+    await screen.findByRole('article', { name: 'A' })
+
+    expect(
+        screen.queryByRole('button', { name: /log ?out/i }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('me@example.com')).not.toBeInTheDocument()
+})
+
+test('keeps its title for screen readers only, outside the bar', async () => {
+    apiMock.listInstances.mockResolvedValue(ok({ instances: threeWidgets() }))
+    renderDashboard()
+
+    const title = screen.getByRole('heading', { level: 1 })
+    expect(title).toHaveTextContent('My Dashboard')
+    expect(title).toHaveClass('sr-only')
+    expect(screen.getByRole('main')).toContainElement(title)
 })
 
 test('says so when the list cannot be loaded, and can try again', async () => {
     apiMock.listInstances.mockRejectedValueOnce(new TypeError('x'))
-    renderWithQuery(<Dashboard />)
+    renderDashboard()
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
         "Couldn't reach the dashboard server.",
@@ -107,7 +150,7 @@ test('moving a card reorders it at once and saves the new positions', async () =
     apiMock.saveLayout.mockResolvedValue(
         ok({ instances: [{ ...a, x: 4 }, { ...b, x: 0 }, c] }),
     )
-    renderWithQuery(<Dashboard />)
+    renderDashboard()
     await screen.findByRole('article', { name: 'A' })
 
     await userEvent.click(card('A').getByRole('button', { name: 'Move right' }))
@@ -121,7 +164,7 @@ test('moving a card reorders it at once and saves the new positions', async () =
 
 test('moving the first card left does nothing', async () => {
     apiMock.listInstances.mockResolvedValue(ok({ instances: threeWidgets() }))
-    renderWithQuery(<Dashboard />)
+    renderDashboard()
     await screen.findByRole('article', { name: 'A' })
 
     await userEvent.click(card('A').getByRole('button', { name: 'Move left' }))
@@ -132,7 +175,7 @@ test('moving the first card left does nothing', async () => {
 test('a refused move puts the cards back and says so', async () => {
     apiMock.listInstances.mockResolvedValue(ok({ instances: threeWidgets() }))
     apiMock.saveLayout.mockResolvedValue(fail(400, 'VALIDATION', 'Bad layout'))
-    renderWithQuery(<Dashboard />)
+    renderDashboard()
     await screen.findByRole('article', { name: 'A' })
 
     await userEvent.click(card('A').getByRole('button', { name: 'Move right' }))
@@ -145,7 +188,7 @@ test('a refused move puts the cards back and says so', async () => {
 
 test('deleting asks first; Cancel keeps the widget', async () => {
     apiMock.listInstances.mockResolvedValue(ok({ instances: threeWidgets() }))
-    renderWithQuery(<Dashboard />)
+    renderDashboard()
     await screen.findByRole('article', { name: 'B' })
 
     await userEvent.click(card('B').getByRole('button', { name: 'Delete' }))
@@ -164,7 +207,7 @@ test('confirming deletes the widget and closes the gap it leaves', async () => {
     apiMock.listInstances.mockResolvedValue(ok({ instances: [a, b, c] }))
     apiMock.deleteInstance.mockResolvedValue(ok({ ok: true }))
     apiMock.saveLayout.mockResolvedValue(ok({ instances: [a, { ...c, x: 4 }] }))
-    renderWithQuery(<Dashboard />)
+    renderDashboard()
     await screen.findByRole('article', { name: 'B' })
 
     await userEvent.click(card('B').getByRole('button', { name: 'Delete' }))
@@ -187,7 +230,7 @@ test('confirming deletes the widget and closes the gap it leaves', async () => {
 test('a failed delete keeps the dialog open with the reason', async () => {
     apiMock.listInstances.mockResolvedValue(ok({ instances: threeWidgets() }))
     apiMock.deleteInstance.mockRejectedValue(new TypeError('x'))
-    renderWithQuery(<Dashboard />)
+    renderDashboard()
     await screen.findByRole('article', { name: 'B' })
 
     await userEvent.click(card('B').getByRole('button', { name: 'Delete' }))
@@ -202,7 +245,7 @@ test('a failed delete keeps the dialog open with the reason', async () => {
 
 test('Edit opens the edit dialog for that widget', async () => {
     apiMock.listInstances.mockResolvedValue(ok({ instances: threeWidgets() }))
-    renderWithQuery(<Dashboard />)
+    renderDashboard()
     await screen.findByRole('article', { name: 'B' })
 
     await userEvent.click(card('B').getByRole('button', { name: 'Edit' }))
@@ -220,7 +263,7 @@ test('Add Widget opens the add dialog, and a created widget appears', async () =
     apiMock.createInstance.mockResolvedValue(
         ok(makeInstance({ title: 'New one', x: 4, y: 0 })),
     )
-    renderWithQuery(<Dashboard />)
+    renderDashboard()
     await screen.findByRole('article', { name: 'A' })
 
     await userEvent.click(screen.getByRole('button', { name: 'Add Widget' }))

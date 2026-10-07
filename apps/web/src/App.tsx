@@ -1,34 +1,78 @@
-import { BrowserRouter, Link, Route, Routes } from 'react-router'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import { AuthProvider } from './auth'
+import GuestRoute from './components/GuestRoute'
 import ProtectedRoute from './components/ProtectedRoute'
 import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
+import Profile from './pages/Profile'
 import Register from './pages/Register'
+import Settings from './pages/Settings'
 import VerifyEmail from './pages/VerifyEmail'
+
+// Apart from the router around them, so a test can put them in a MemoryRouter.
+export function AppRoutes() {
+    return (
+        <Routes>
+            <Route
+                path="/login"
+                element={
+                    <GuestRoute>
+                        <Login />
+                    </GuestRoute>
+                }
+            />
+            <Route
+                path="/register"
+                element={
+                    <GuestRoute>
+                        <Register />
+                    </GuestRoute>
+                }
+            />
+            <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route
+                path="/dashboard"
+                element={
+                    <ProtectedRoute>
+                        <Dashboard />
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/profile"
+                element={
+                    <ProtectedRoute>
+                        <Profile />
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/settings"
+                element={
+                    <ProtectedRoute>
+                        <Settings />
+                    </ProtectedRoute>
+                }
+            />
+            {/* "/" and every unknown address: the dashboard with a session,
+                the login page without one (ProtectedRoute sends there). */}
+            <Route
+                path="*"
+                element={
+                    <ProtectedRoute>
+                        <Navigate to="/dashboard" replace />
+                    </ProtectedRoute>
+                }
+            />
+        </Routes>
+    )
+}
 
 function App() {
     return (
         <AuthProvider>
             <BrowserRouter>
-                <nav className="p-4 flex gap-4 bg-gray-800 text-white">
-                    <Link to="/login">Login</Link>
-                    <Link to="/register">Register</Link>
-                    <Link to="/dashboard">Dashboard</Link>
-                </nav>
-
-                <Routes>
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/register" element={<Register />} />
-                    <Route path="/verify-email" element={<VerifyEmail />} />
-                    <Route
-                        path="/dashboard"
-                        element={
-                            <ProtectedRoute>
-                                <Dashboard />
-                            </ProtectedRoute>
-                        }
-                    />
-                </Routes>
+                <AppRoutes />
             </BrowserRouter>
         </AuthProvider>
     )

@@ -23,7 +23,7 @@ export default function Login() {
         setPending(true)
         try {
             await login(email, password)
-            navigate('/dashboard')
+            navigate('/dashboard', { replace: true })
         } catch (error) {
             setError(errorMessage(error))
         } finally {
