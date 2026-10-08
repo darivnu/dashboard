@@ -35,6 +35,20 @@ export function oauthPendingCookieOptions() {
     } as const
 }
 
+export const OAUTH_LOGIN_COOKIE = 'oauth_login'
+
+// Same as oauth_pending, for logging in with a provider (see oauth-login.routes.ts).
+// Its own name and path: the browser never sends oauth_pending to /api/auth.
+export function oauthLoginCookieOptions() {
+    return {
+        httpOnly: true,
+        secure: isHttps,
+        sameSite: 'lax',
+        path: '/api/auth/oauth',
+        maxAge: OAUTH_PENDING_MAX_AGE_SECONDS,
+    } as const
+}
+
 export interface SessionUser {
     id: string
     email: string

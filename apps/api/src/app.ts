@@ -4,6 +4,7 @@ import { staticPlugin } from '@elysiajs/static'
 import { registerServices } from './services/register'
 import { AppError, errorHandler } from './lib/errors'
 import { authRoutes } from './modules/auth/auth.routes'
+import { oauthLoginRoutes } from './modules/auth/oauth-login.routes'
 import { aboutRoutes } from './modules/about/about.routes'
 import { actionsRoutes } from './modules/actions/actions.routes'
 import { catalogRoutes } from './modules/catalog/catalog.routes'
@@ -20,6 +21,7 @@ const api = new Elysia({ prefix: '/api' })
     .use(cors)
     .get('/health', () => ({ ok: true }))
     .use(authRoutes)
+    .use(oauthLoginRoutes)
     .use(catalogRoutes)
     .use(dashboardRoutes)
     .use(subscriptionsRoutes)

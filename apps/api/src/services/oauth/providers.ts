@@ -11,6 +11,7 @@ import type { OAuthCredentials } from '../types'
 import type { OAuthProviderId } from './ids'
 
 const REVOKE_TIMEOUT_MS = 10_000
+const GITHUB_API_TIMEOUT_MS = 10_000
 
 /**
  * What the rest of the API needs from an OAuth provider. One adapter per
@@ -135,4 +136,100 @@ export function __setProviderForTests(id: OAuthProviderId, provider: OAuthProvid
         testOverrides.delete(id)
     else
         testOverrides.set(id, provider)
+}
+
+// ---------------------------------------------------------------------------
+// Logging in with a provider
+// ---------------------------------------------------------------------------
+
+/** Who the user is at the provider. */
+export interface ProviderIdentity {
+    /** The provider's stable user id (GitHub's numeric id, as text). */
+    providerUserId: string
+    /** The primary email, only when the provider says it is verified; null otherwise. */
+    email: string | null
+}
+
+/**
+ * Logging in with a provider, as opposed to connecting a service: the token
+ * is only used to ask who the user is, then dropped. It never leaves the
+ * adapter, so it can't end up stored or logged.
+ */
+export interface LoginProvider {
+    id: OAuthProviderId
+    authorizationUrl(state: string): URL
+    /** Trades the code for a token, asks who the user is, and forgets the token. */
+    identify(code: string): Promise<ProviderIdentity>
+}
+
+//its own callback, apart from the subscriptions one. The GitHub OAuth App's callback URL must be
+//${APP_URL}/api so that both are subdirectories of it (GitHub's rule for redirect_uri)
+export function loginCallbackUrl(id: OAuthProviderId): string {
+    return `${env.appUrl}/api/auth/oauth/${id}/callback`
+}
+
+//GET on the GitHub API with the user's token. The error holds the status only, never the body
+async function githubGet(path: string, accessToken: string): Promise<unknown> {
+    const response = await fetch(`https://api.github.com${path}`, {
+        headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+        },
+        signal: AbortSignal.timeout(GITHUB_API_TIMEOUT_MS),
+    })
+    if (response.status !== 200) {
+        throw new Error(`GitHub ${path} answered with status ${response.status}`)
+    }
+    return response.json()
+}
+
+export function createGitHubLoginProvider(config: OAuthClientConfig): LoginProvider {
+    //a second arctic client: the redirect URI is fixed at construction and sent again with the code
+    const client = new GitHub(config.clientId, config.clientSecret, loginCallbackUrl('github'))
+
+    return {
+        id: 'github',
+
+        //user:email is what /user/emails needs; /user itself needs no scope
+        authorizationUrl(state) {
+            return client.createAuthorizationURL(state, ['user:email'])
+        },
+
+        async identify(code) {
+            const tokens = await client.validateAuthorizationCode(code)
+            const accessToken = (tokens.data as Record<string, unknown>).access_token
+            if (typeof accessToken !== 'string' || accessToken === '') {
+                throw new Error('Token response has no access_token')
+            }
+
+            const user = await githubGet('/user', accessToken) as { id?: unknown }
+            if (typeof user.id !== 'number') {
+                throw new Error('GitHub /user has no id')
+            }
+
+            //only the primary address, and only if GitHub verified it: one deterministic email
+            const emails = await githubGet('/user/emails', accessToken) as { email: string; primary: boolean; verified: boolean }[]
+            const primary = Array.isArray(emails) ? emails.find((entry) => entry.primary) : undefined
+
+            return {
+                providerUserId: String(user.id),
+                email: primary?.verified ? primary.email : null, //if not verified, then null
+            }
+        },
+    }
+}
+
+const loginFactories: Record<OAuthProviderId, () => LoginProvider | null> = {
+    github: () => (env.oauth.github ? createGitHubLoginProvider(env.oauth.github) : null),
+}
+
+const loginInstances = new Map<OAuthProviderId, LoginProvider | null>()
+
+/** The login adapter for `id`, or null when its env variables are not set. */
+export function getLoginProvider(id: OAuthProviderId): LoginProvider | null {
+    if (!loginInstances.has(id)) {
+        loginInstances.set(id, loginFactories[id]())
+    }
+    return loginInstances.get(id) ?? null
 }

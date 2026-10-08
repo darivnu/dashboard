@@ -23,3 +23,9 @@ export const api = treaty<App>(baseUrl, {
 export function connectUrl(serviceId: string) {
     return `${baseUrl}/api/subscriptions/${encodeURIComponent(serviceId)}/authorize`
 }
+
+// Where the browser goes to log in with GitHub. A navigation too, for the same
+// reason. The API sends the user back to /dashboard, or to /login?oauth_error=...
+export function githubLoginUrl() {
+    return `${baseUrl}/api/auth/oauth/github`
+}

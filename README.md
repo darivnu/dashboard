@@ -47,6 +47,7 @@ bunx biome check --write .    # Biome: apply every safe fix
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — overall architecture and the service/widget registry
 - [`docs/BACKEND.md`](docs/BACKEND.md) — backend modules and routes
 - [`docs/ADDING_A_SERVICE.md`](docs/ADDING_A_SERVICE.md) — how to add a service or widget, a GitHub one, or a new OAuth provider
+- [`docs/HANDLING_OAUTH.md`](docs/HANDLING_OAUTH.md) — OAuth: setting up the GitHub app, connecting a service, logging in with GitHub, adding a new provider
 
 ## Email (Brevo)
 
@@ -75,12 +76,16 @@ Notes:
 
 ## GitHub (OAuth)
 
-Without these variables the API still boots, but the GitHub service shows as unavailable and its Connect button is disabled. To enable it:
+One GitHub OAuth App serves two things: connecting the GitHub service (widgets) and the "Continue with GitHub" button on the login page. Without these variables the API still boots, but the GitHub service shows as unavailable, its Connect button is disabled, and "Continue with GitHub" answers 404. To enable it:
 
 1. https://github.com/settings/developers → OAuth Apps → New OAuth App.
 2. Fill in:
    - Homepage URL: where the frontend is served (`http://localhost:8080` with Docker, `http://localhost:5173` with `bun run dev`). Only shown on GitHub's consent screen.
-   - Authorization callback URL: `APP_URL` + `/api/subscriptions/oauth/github/callback`, so `http://localhost:8080/api/subscriptions/oauth/github/callback` locally. It must match exactly.
+   - Redirect URIs: add both, each must match exactly:
+     - `APP_URL` + `/api/subscriptions/oauth/github/callback` (connecting the service), so `http://localhost:8080/api/subscriptions/oauth/github/callback` locally;
+     - `APP_URL` + `/api/auth/oauth/github/callback` (logging in), so `http://localhost:8080/api/auth/oauth/github/callback` locally.
+
+     A missing one shows GitHub's "The redirect_uri is not associated with this application".
    - Leave "Enable Device Flow" and wildcard matching off.
 3. Generate a client secret. Copy it now; it is shown once.
 4. Set, in `apps/api/.env` (local) or the root `.env` (Docker):
@@ -93,6 +98,6 @@ OAUTH_GITHUB_CLIENT_SECRET=<the client secret>
 Both or neither: only one of the two set stops the API at boot.
 
 Notes:
-- An OAuth App accepts a single callback URL, so production needs its own app, with the deployed API's URL in the callback.
-- Tokens are stored encrypted with `MASTER_KEY`; changing that key means every user has to connect again.
-- 
+- The Redirect URIs contain `APP_URL`, so production needs its own app, with the deployed API's URL in both.
+- Service tokens are stored encrypted with `MASTER_KEY`; changing that key means every user has to connect again. Logging in stores no GitHub token.
+- How both flows work, and how to add another provider: [`docs/HANDLING_OAUTH.md`](docs/HANDLING_OAUTH.md).

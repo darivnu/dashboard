@@ -62,6 +62,19 @@ export const sessions = pgTable('sessions', {
     index('sessions_user_idx').on(t.userId),
 ])
 
+/** External accounts that can log in as a user (log in with GitHub). Never holds a provider token. */
+export const authIdentities = pgTable('auth_identities', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    provider: text('provider').notNull(),                // an OAuthProviderId, e.g. 'github'
+    providerUserId: text('provider_user_id').notNull(),  // the provider's stable id (GitHub's numeric id), never the login
+    email: text('email').notNull(),                      // as the provider reported it when linked
+    createdAt: timestamps.createdAt,
+}, (t) => [
+    uniqueIndex('auth_identities_provider_user_idx').on(t.provider, t.providerUserId),
+    index('auth_identities_user_idx').on(t.userId),
+])
+
 // ---------------------------------------------------------------------------
 // Service subscriptions (what you can do)
 // ---------------------------------------------------------------------------

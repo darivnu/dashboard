@@ -33,7 +33,8 @@ You never edit them.
 | `oauth2` | the user logs into their account at the provider | clicks **Connect**, accepts on the provider's page | `ctx.http`, `ctx.getAccessToken()` |
 
 `oauth2` only works with a provider the API already knows (`services/oauth/ids.ts`, `github`
-today). For a new one, see [section 3](#3-a-new-oauth-provider-spotify-google) first.
+today). For a new one, see [section 3](#3-a-new-oauth-provider-spotify-google) first. How
+the Connect flow, token storage and refresh work is in [HANDLING_OAUTH.md](HANDLING_OAUTH.md).
 
 ### Step 2: the backend definition
 
@@ -215,7 +216,8 @@ A widget with no entry shows "Widget not implemented yet". That's the sign of a 
 
 The GitHub provider is already set up: OAuth App, env variables, callback route, token
 storage and refresh, Connect / Reconnect buttons. A new GitHub feature is just a
-definition, like any other service.
+definition, like any other service. Setting up the GitHub OAuth App itself (Redirect URIs,
+env variables) is in [HANDLING_OAUTH.md, section 1](HANDLING_OAUTH.md#1-setting-up-a-provider-app-github).
 
 You have two options.
 
@@ -324,7 +326,9 @@ service's scopes.
 ## 3. A new OAuth provider (Spotify, Google…)
 
 Only needed once per provider. After that, its services are plain definitions, as in
-section 2. Everything lives in `apps/api`:
+section 2. Everything lives in `apps/api`. The steps below cover connecting services;
+[HANDLING_OAUTH.md, section 4](HANDLING_OAUTH.md#4-adding-a-new-provider) has the same steps
+plus the optional one for logging in with the new provider:
 
 1. **`services/oauth/ids.ts`**: add the id to `OAUTH_PROVIDER_IDS`:
    `['github', 'spotify'] as const`. TypeScript then points at every place that has to
@@ -340,7 +344,8 @@ section 2. Everything lives in `apps/api`:
    Add `spotify: null` to `oauth` in **`config/env.fakes.ts`**, or the tests stop compiling.
    Document the two variables in **`apps/api/.env.example`** and the README.
 
-3. **`services/oauth/providers.ts`**: write the adapter and add it to `factories`. Use
+3. **`services/oauth/providers.ts`**: write the adapter and add it to `factories`. Also
+   add an entry to `loginFactories`: `() => null` if the provider isn't used to log in. Use
    the matching class from [arctic](https://arcticjs.dev/), which already has one for
    most providers. Copy `createGitHubProvider`:
    ```ts
@@ -369,7 +374,9 @@ section 2. Everything lives in `apps/api`:
 
 4. **Register an app** at the provider, with this redirect / callback URL:
    `APP_URL` + `/api/subscriptions/oauth/<provider>/callback`. It must match exactly.
-   Local and production usually need separate apps.
+   Local and production usually need separate apps. See
+   [HANDLING_OAUTH.md, section 1](HANDLING_OAUTH.md#1-setting-up-a-provider-app-github) for
+   how it's done for GitHub.
 
 5. Then write services with `auth: { kind: 'oauth2', provider: 'spotify', scopes: [...] }`,
    as in section 2.
@@ -393,6 +400,8 @@ docker compose up --build
 3. **Add the widget** from the dashboard. The form fields come from `params`.
 4. **Auth**: with `apiKey`, the card shows **API key**. With `oauth2`, it shows **Connect**,
    which goes through the provider and back to the dashboard with a green "… is connected".
+   If it comes back with an error instead, the `?oauth_error=` codes are listed in
+   [HANDLING_OAUTH.md, section 2](HANDLING_OAUTH.md#2-connecting-a-service-with-oauth).
 5. **The data**:
    - "Widget not implemented yet": the key in `widgetRegistry.tsx` doesn't match
      `serviceId/widgetId`.
