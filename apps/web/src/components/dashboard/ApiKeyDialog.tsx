@@ -5,7 +5,7 @@ import Dialog from '../ui/Dialog'
 import CatalogLoader from './CatalogLoader'
 import ParamForm from './ParamForm'
 import { errorMessage, useSetApiKey } from './queries'
-import type { CatalogParam, CatalogService, Instance } from './types'
+import type { CatalogParam, CatalogService } from './types'
 import {
     initialValues,
     type ParamErrors,
@@ -13,20 +13,20 @@ import {
 } from './validateParams'
 
 type Props = {
-    /** the widget whose service gets the key; null keeps the dialog closed */
-    instance: Instance | null
+    /** the service that gets the key; null keeps the dialog closed */
+    serviceId: string | null
     onClose: () => void
 }
 
-export default function ApiKeyDialog({ instance, onClose }: Props) {
+export default function ApiKeyDialog({ serviceId, onClose }: Props) {
     return (
-        <Dialog open={instance !== null} onClose={onClose} title="API key">
-            {instance && (
+        <Dialog open={serviceId !== null} onClose={onClose} title="API key">
+            {serviceId !== null && (
                 <CatalogLoader>
                     {(services) => (
                         <ApiKeyContent
                             services={services}
-                            instance={instance}
+                            serviceId={serviceId}
                             onClose={onClose}
                         />
                     )}
@@ -38,14 +38,12 @@ export default function ApiKeyDialog({ instance, onClose }: Props) {
 
 type ContentProps = {
     services: CatalogService[]
-    instance: Instance
+    serviceId: string
     onClose: () => void
 }
 
-function ApiKeyContent({ services, instance, onClose }: ContentProps) {
-    const service = services.find(
-        (candidate) => candidate.id === instance.serviceId,
-    )
+function ApiKeyContent({ services, serviceId, onClose }: ContentProps) {
+    const service = services.find((candidate) => candidate.id === serviceId)
 
     if (service?.auth.kind !== 'apiKey') {
         return (

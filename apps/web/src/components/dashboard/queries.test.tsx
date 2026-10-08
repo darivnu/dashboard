@@ -19,6 +19,7 @@ import {
     useCatalog,
     useCreateInstance,
     useDeleteInstance,
+    useDisconnectService,
     useInstances,
     useSaveLayout,
     useUpdateInstance,
@@ -288,5 +289,138 @@ describe('useSaveLayout', () => {
         })
 
         expect(client.getQueryData(queryKeys.instances)).toEqual([a, b])
+    })
+})
+
+describe('useDisconnectService', () => {
+    // Two widgets of the service being disconnected and one of another
+    // service, each with data in the cache.
+    function connectedClient() {
+        const first = makeInstance({ serviceId: 'github' })
+        const second = makeInstance({ serviceId: 'github' })
+        const other = makeInstance({ serviceId: 'nasa' })
+        const client = createTestQueryClient()
+        client.setQueryData(queryKeys.instances, [first, second, other])
+        client.setQueryData(queryKeys.catalog, [])
+        for (const instance of [first, second, other]) {
+            client.setQueryData(queryKeys.widgetData(instance.id), {
+                some: 'data',
+            })
+        }
+        const cached = (instance: { id: string }) =>
+            client.getQueryData(queryKeys.widgetData(instance.id))
+        return { client, first, second, other, cached }
+    }
+
+    test('deletes the subscription of that service and refreshes the catalog', async () => {
+        apiMock.unsubscribe.mockResolvedValue(ok({ ok: true }))
+        const { client } = connectedClient()
+
+        const { result } = renderHookWithQuery(
+            () => useDisconnectService(),
+            client,
+        )
+        await act(() => result.current.mutateAsync('github'))
+
+        expect(apiMock.subscriptionByService).toHaveBeenCalledWith({
+            service: 'github',
+        })
+        expect(apiMock.unsubscribe).toHaveBeenCalledTimes(1)
+        expect(client.getQueryState(queryKeys.catalog)?.isInvalidated).toBe(
+            true,
+        )
+    })
+
+    test('drops the cached data of that service only', async () => {
+        apiMock.unsubscribe.mockResolvedValue(ok({ ok: true }))
+        const { client, first, second, other, cached } = connectedClient()
+
+        const { result } = renderHookWithQuery(
+            () => useDisconnectService(),
+            client,
+        )
+        await act(() => result.current.mutateAsync('github'))
+
+        // Removed, not marked stale: stale data would stay on screen.
+        expect(cached(first)).toBeUndefined()
+        expect(cached(second)).toBeUndefined()
+        expect(cached(other)).toEqual({ some: 'data' })
+        expect(
+            client.getQueryState(queryKeys.widgetData(other.id))?.isInvalidated,
+        ).toBe(false)
+    })
+
+    test('a 404 means it was already disconnected, which counts as done', async () => {
+        apiMock.unsubscribe.mockResolvedValue(
+            fail(404, 'NOT_FOUND', 'This subscription does not exist.'),
+        )
+        const { client, first, other, cached } = connectedClient()
+
+        const { result } = renderHookWithQuery(
+            () => useDisconnectService(),
+            client,
+        )
+        await act(() => result.current.mutateAsync('github'))
+
+        expect(result.current.isError).toBe(false)
+        expect(client.getQueryState(queryKeys.catalog)?.isInvalidated).toBe(
+            true,
+        )
+        expect(cached(first)).toBeUndefined()
+        expect(cached(other)).toEqual({ some: 'data' })
+    })
+
+    test('any other rejection is thrown as an ApiError and the cache is untouched', async () => {
+        apiMock.unsubscribe.mockResolvedValue(
+            fail(500, 'INTERNAL', 'Something went wrong.'),
+        )
+        const { client, first, cached } = connectedClient()
+
+        const { result } = renderHookWithQuery(
+            () => useDisconnectService(),
+            client,
+        )
+        await act(async () => {
+            await expect(
+                result.current.mutateAsync('github'),
+            ).rejects.toMatchObject({
+                status: 500,
+                message: 'Something went wrong.',
+            })
+        })
+
+        expect(cached(first)).toEqual({ some: 'data' })
+        expect(client.getQueryState(queryKeys.catalog)?.isInvalidated).toBe(
+            false,
+        )
+    })
+
+    test('a network failure is rejected as it is', async () => {
+        apiMock.unsubscribe.mockRejectedValue(new TypeError('Failed to fetch'))
+        const { client, first, cached } = connectedClient()
+
+        const { result } = renderHookWithQuery(
+            () => useDisconnectService(),
+            client,
+        )
+        await act(async () => {
+            await expect(
+                result.current.mutateAsync('github'),
+            ).rejects.toBeInstanceOf(TypeError)
+        })
+
+        expect(cached(first)).toEqual({ some: 'data' })
+    })
+
+    test('works when the list of widgets was never loaded', async () => {
+        apiMock.unsubscribe.mockResolvedValue(ok({ ok: true }))
+
+        const { result } = renderHookWithQuery(() => useDisconnectService())
+
+        await act(async () => {
+            await expect(result.current.mutateAsync('github')).resolves.toBe(
+                'github',
+            )
+        })
     })
 })

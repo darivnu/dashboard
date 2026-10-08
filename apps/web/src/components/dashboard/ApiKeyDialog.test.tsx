@@ -46,12 +46,12 @@ function makeServices(subscription: { status: string } | null = null) {
 const keyField = () => screen.getByLabelText(/NASA API key/)
 
 function setup(
-    instance: ReturnType<typeof makeInstance> | null,
-    instances: ReturnType<typeof makeInstance>[] = instance ? [instance] : [],
+    serviceId: string | null,
+    instances: ReturnType<typeof makeInstance>[] = [],
 ) {
     const onClose = vi.fn()
     const view = renderWithQuery(
-        <ApiKeyDialog instance={instance} onClose={onClose} />,
+        <ApiKeyDialog serviceId={serviceId} onClose={onClose} />,
     )
     view.client.setQueryData(queryKeys.instances, instances)
     return { onClose, user: userEvent.setup(), ...view }
@@ -66,14 +66,14 @@ beforeEach(() => {
     apiMock.catalog.mockResolvedValue(ok({ services: makeServices() }))
 })
 
-test('stays closed while there is no widget', () => {
+test('stays closed while there is no service', () => {
     setup(null)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(apiMock.catalog).not.toHaveBeenCalled()
 })
 
 test('asks for the fields of the service, hidden as typed', async () => {
-    setup(nasaWidget())
+    setup('nasa')
 
     expect(await screen.findByRole('dialog', { name: 'API key' })).toBeVisible()
     expect(
@@ -91,7 +91,7 @@ test.each([
     apiMock.catalog.mockResolvedValue(
         ok({ services: makeServices({ status }) }),
     )
-    setup(nasaWidget())
+    setup('nasa')
     expect(await screen.findByText(message)).toBeVisible()
 })
 
@@ -99,7 +99,7 @@ test('saves the key for the service and closes', async () => {
     apiMock.subscribe.mockResolvedValue(
         ok({ serviceId: 'nasa', status: 'active' }),
     )
-    const { user, onClose } = setup(nasaWidget())
+    const { user, onClose } = setup('nasa')
 
     await user.type(await screen.findByLabelText(/NASA API key/), ' my-key ')
     await user.click(screen.getByRole('button', { name: 'Save' }))
@@ -118,7 +118,7 @@ test('after saving, every widget of the service fetches its data again', async (
     const first = nasaWidget()
     const second = nasaWidget()
     const other = makeInstance()
-    const { user, onClose, client } = setup(first, [first, second, other])
+    const { user, onClose, client } = setup('nasa', [first, second, other])
     for (const instance of [first, second, other]) {
         client.setQueryData(queryKeys.widgetData(instance.id), {})
     }
@@ -137,7 +137,7 @@ test('after saving, every widget of the service fetches its data again', async (
 })
 
 test('does not call the API while the key is empty', async () => {
-    const { user } = setup(nasaWidget())
+    const { user } = setup('nasa')
 
     await user.click(await screen.findByRole('button', { name: 'Save' }))
 
@@ -149,7 +149,7 @@ test('a server rejection is shown in the form and the dialog stays open', async 
     apiMock.subscribe.mockResolvedValue(
         fail(400, 'INVALID_CREDENTIALS', 'apiKey is required'),
     )
-    const { user, onClose } = setup(nasaWidget())
+    const { user, onClose } = setup('nasa')
 
     await user.type(await screen.findByLabelText(/NASA API key/), 'my-key')
     await user.click(screen.getByRole('button', { name: 'Save' }))
@@ -161,7 +161,7 @@ test('a server rejection is shown in the form and the dialog stays open', async 
 })
 
 test('says so when the service does not use an API key', async () => {
-    setup(makeInstance())
+    setup('mock')
 
     expect(
         await screen.findByText("This service doesn't use an API key."),
@@ -172,8 +172,31 @@ test('says so when the service does not use an API key', async () => {
 })
 
 test('Cancel closes without saving', async () => {
-    const { user, onClose } = setup(nasaWidget())
+    const { user, onClose } = setup('nasa')
     await user.click(await screen.findByRole('button', { name: 'Cancel' }))
     expect(onClose).toHaveBeenCalled()
     expect(apiMock.subscribe).not.toHaveBeenCalled()
+})
+
+test('works for a service the user has no widget of', async () => {
+    apiMock.subscribe.mockResolvedValue(
+        ok({ serviceId: 'nasa', status: 'active' }),
+    )
+    const { user, onClose } = setup('nasa', [])
+
+    await user.type(await screen.findByLabelText(/NASA API key/), 'my-key')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(apiMock.subscriptionByService).toHaveBeenCalledWith({
+        service: 'nasa',
+    })
+})
+
+test('says so for a service id the catalog does not have', async () => {
+    setup('gone')
+
+    expect(
+        await screen.findByText("This service doesn't use an API key."),
+    ).toBeVisible()
 })

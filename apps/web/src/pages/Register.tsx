@@ -1,65 +1,115 @@
 import { useState } from 'react'
+import { Link } from 'react-router'
 import { api } from '../api'
+import { errorMessage, unwrap } from '../components/dashboard/queries'
+import Alert from '../components/ui/Alert'
+import Button from '../components/ui/Button'
+import Field, { describedBy } from '../components/ui/Field'
+import Input from '../components/ui/Input'
+
+const passwordHint = 'At least 8 characters'
+const linkClass = 'text-blue-400 hover:text-blue-300 underline'
 
 export default function Register() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
+    const [error, setError] = useState<string | null>(null)
+    const [pending, setPending] = useState(false)
+    const [created, setCreated] = useState(false)
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (pending) return
 
-        const { error } = await api.auth.register.post({
-            email,
-            password,
-        })
-
-        if (error) {
-            console.error(error)
-            alert('Registration failed')
-            return
+        setError(null)
+        setPending(true)
+        try {
+            unwrap(await api.auth.register.post({ email, password }))
+            setCreated(true)
+        } catch (error) {
+            setError(errorMessage(error))
+        } finally {
+            setPending(false)
         }
-
-        alert('Account created! Check your email to verify.')
     }
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-900">
-            <form
-                onSubmit={handleSubmit}
-                className="bg-gray-800 p-8 rounded-xl w-full max-w-md flex flex-col gap-4"
-            >
+            <div className="bg-gray-800 p-8 rounded-xl w-full max-w-md flex flex-col gap-4">
                 <h1 className="text-2xl font-bold text-white text-center">
                     Create account
                 </h1>
 
-                <input
-                    type="email"
-                    placeholder="Email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    maxLength={254}
-                    className="p-3 rounded-lg bg-gray-700 text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                {created ? (
+                    <Alert
+                        variant="success"
+                        action={
+                            <Link to="/login" className={linkClass}>
+                                Log in
+                            </Link>
+                        }
+                    >
+                        Account created. Check your email to verify your
+                        address.
+                    </Alert>
+                ) : (
+                    <>
+                        {error && <Alert>{error}</Alert>}
 
-                <input
-                    type="password"
-                    placeholder="Password (min. 8 characters)"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    minLength={8}
-                    maxLength={128}
-                    className="p-3 rounded-lg bg-gray-700 text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                        <form onSubmit={handleSubmit} className="flex flex-col">
+                            <Field label="Email" htmlFor="register-email">
+                                <Input
+                                    id="register-email"
+                                    type="email"
+                                    autoComplete="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    required
+                                    maxLength={254}
+                                />
+                            </Field>
 
-                <button
-                    type="submit"
-                    className="p-3 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-500 transition"
-                >
-                    Sign up
-                </button>
-            </form>
+                            <Field
+                                label="Password"
+                                htmlFor="register-password"
+                                hint={passwordHint}
+                            >
+                                <Input
+                                    id="register-password"
+                                    type="password"
+                                    autoComplete="new-password"
+                                    aria-describedby={describedBy(
+                                        'register-password',
+                                        { hint: passwordHint },
+                                    )}
+                                    value={password}
+                                    onChange={(e) =>
+                                        setPassword(e.target.value)
+                                    }
+                                    required
+                                    minLength={8}
+                                    maxLength={128}
+                                />
+                            </Field>
+
+                            <Button
+                                type="submit"
+                                disabled={pending}
+                                className="mt-1"
+                            >
+                                Sign up
+                            </Button>
+                        </form>
+
+                        <p className="text-gray-300 text-sm text-center">
+                            Already have an account?{' '}
+                            <Link to="/login" className={linkClass}>
+                                Log in
+                            </Link>
+                        </p>
+                    </>
+                )}
+            </div>
         </div>
     )
 }

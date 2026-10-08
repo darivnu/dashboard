@@ -18,13 +18,28 @@ export const apiMock = {
     /** receives the `{ service }` given to `api.subscriptions({ service })` */
     subscriptionByService: vi.fn(),
     subscribe: vi.fn(),
+    unsubscribe: vi.fn(),
     /** receives the `{ serviceId, actionId }` given to `api.services(...).actions(...)` */
     actionTarget: vi.fn(),
     runAction: vi.fn(),
+    login: vi.fn(),
+    register: vi.fn(),
+    verifyEmail: vi.fn(),
+    resendVerification: vi.fn(),
+    me: vi.fn(),
+    logout: vi.fn(),
 }
 
 export const apiModule = {
     api: {
+        auth: {
+            login: { post: apiMock.login },
+            register: { post: apiMock.register },
+            'verify-email': { post: apiMock.verifyEmail },
+            'resend-verification': { post: apiMock.resendVerification },
+            me: { get: apiMock.me },
+            logout: { post: apiMock.logout },
+        },
         catalog: { get: apiMock.catalog },
         dashboard: {
             instances: Object.assign(
@@ -42,7 +57,7 @@ export const apiModule = {
         },
         subscriptions: (params: { service: string }) => {
             apiMock.subscriptionByService(params)
-            return { post: apiMock.subscribe }
+            return { post: apiMock.subscribe, delete: apiMock.unsubscribe }
         },
         services: (service: { serviceId: string }) => ({
             actions: (action: { actionId: string }) => {

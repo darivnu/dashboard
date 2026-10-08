@@ -2,10 +2,15 @@ import { Elysia, t } from 'elysia'
 import { mailer } from '../../lib/mailer'
 import { auth, sessionCookieOptions, SESSION_COOKIE } from '../../plugins/session'
 import { rateLimit } from '../../plugins/rate-limit'
+import { getProvider } from '../../services/oauth/providers'
+import { subscriptionsRepo } from '../subscriptions/subscriptions.repo'
+import { createSubscriptionsService } from '../subscriptions/subscriptions.service'
 import { authRepo } from './auth.repo'
 import { createAuthService } from './auth.service'
 
-const authService = createAuthService({ repo: authRepo, mailer })
+// Deleting an account revokes the user's OAuth tokens, which is the subscriptions service's job.
+const subscriptions = createSubscriptionsService(subscriptionsRepo, getProvider)
+const authService = createAuthService({ repo: authRepo, mailer, subscriptions })
 
 const publicUser = t.Object({
     id: t.String({ format: 'uuid' }),
@@ -14,7 +19,20 @@ const publicUser = t.Object({
     createdAt: t.Date(),
 })
 
-const ok = t.Object({ ok: t.Literal(true) })
+const ok = t.Object({
+    ok: t.Literal(true, { description: 'Always true: a failure answers with an error envelope instead' }),
+}, { description: 'The operation was carried out' })
+
+const errorResponse = t.Object({
+    error: t.String({
+        description: 'Machine-readable error code',
+        examples: ['UNAUTHORIZED', 'RATE_LIMITED'],
+    }),
+    message: t.String({
+        description: 'Human-readable explanation, in English',
+        examples: ['Authentication required', 'Too many requests, try again later'],
+    }),
+}, { description: 'Error envelope produced by the global error handler and the rate limiter' })
 
 const credentialsBody = t.Object({
     email: t.String({ format: 'email', maxLength: 254}),
@@ -29,7 +47,12 @@ const emailBody = t.Object({
     email: t.String({ format: 'email', maxLength: 254 }),
 })
 
-export const authRoutes = new Elysia ({ prefix: '/auth'})
+export const authRoutes = new Elysia ({
+    prefix: '/auth',
+    detail: {
+        tags: ['Auth'],
+    },
+})
     .use(auth)
     .use(rateLimit)
     .model({
@@ -38,6 +61,7 @@ export const authRoutes = new Elysia ({ prefix: '/auth'})
         'auth.emailBody': emailBody,
         'auth.user': publicUser,
         'auth.ok': ok,
+        'auth.error': errorResponse,
     })
     .post('/register', async ({ body, set }) => {
         const user = await authService.register(body)
@@ -108,4 +132,34 @@ export const authRoutes = new Elysia ({ prefix: '/auth'})
         auth: true,
         response: 'auth.user',
     })
-    
+
+    // Must stay DELETE, never POST. The session cookie is SameSite=None in
+    // production, so the browser attaches it to requests coming from any site.
+    // An HTML form cannot send DELETE, and a script on another origin first
+    // triggers a CORS preflight, which the allow-list in plugins/cors.ts rejects.
+    .delete('/me', async ({ user, cookie }) => {
+        await authService.deleteAccount(user.id)
+
+        cookie[SESSION_COOKIE].set({
+            ...sessionCookieOptions(),
+            value: '',
+            expires: new Date(0),
+            maxAge: 0,
+        })
+
+        return { ok: true }
+    }, {
+        auth: true,
+        response: {
+            200: 'auth.ok',
+            401: 'auth.error',
+            429: 'auth.error',
+        },
+        detail: {
+            summary: 'Delete the current user\'s account',
+            description: 'Permanently erases the logged-in user and everything stored for them: the account, every session on every device, one-time tokens, service subscriptions with their stored credentials, and widget instances. It cannot be undone and takes no request body. The session \
+            cookie is expired in the response, and every other session of the user stops working at once. OAuth tokens are revoked at their provider on a best-effort basis: a provider that cannot be reached does not fail the deletion and is not reported here. \
+            Rate limited per IP together with the other auth routes.',
+            security: [{ cookieAuth: [] }],
+        },
+    })

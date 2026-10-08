@@ -1,6 +1,4 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router'
-import { useAuth } from '../auth'
 import AddWidgetDialog from '../components/dashboard/AddWidgetDialog'
 import ApiKeyDialog from '../components/dashboard/ApiKeyDialog'
 import ConfirmDialog from '../components/dashboard/ConfirmDialog'
@@ -19,15 +17,13 @@ import {
     useSaveLayout,
 } from '../components/dashboard/queries'
 import type { Instance } from '../components/dashboard/types'
+import AppShell from '../components/layout/AppShell'
 import Alert from '../components/ui/Alert'
 import Button from '../components/ui/Button'
 import Spinner from '../components/ui/Spinner'
 import WidgetGrid from '../components/WidgetGrid'
 
 export default function Dashboard() {
-    const { user, logout } = useAuth()
-    const navigate = useNavigate()
-
     const instances = useInstances()
     const saveLayout = useSaveLayout()
     const remove = useDeleteInstance()
@@ -47,11 +43,6 @@ export default function Dashboard() {
     const deletingName = deleting
         ? (deleting.title ?? `${deleting.serviceId} / ${deleting.widgetId}`)
         : ''
-
-    const handleLogout = async () => {
-        await logout()
-        navigate('/login')
-    }
 
     const handleMove = (instance: Instance, direction: 'left' | 'right') => {
         const changes = layoutChanges(list, move(list, instance.id, direction))
@@ -77,54 +68,46 @@ export default function Dashboard() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-900">
-            <header className="flex justify-between items-center p-4 bg-gray-800 text-white">
-                <h1 className="text-xl font-bold">My Dashboard</h1>
-                <div className="flex items-center gap-4">
-                    <Button onClick={() => setAdding(true)}>Add Widget</Button>
-                    <span className="text-gray-300">{user?.email}</span>
-                    <Button variant="danger" onClick={handleLogout}>
-                        Logout
-                    </Button>
+        <AppShell
+            actions={
+                <Button onClick={() => setAdding(true)}>Add Widget</Button>
+            }
+        >
+            <h1 className="sr-only">My Dashboard</h1>
+            <OAuthNotice />
+            {saveLayout.isError && (
+                <Alert className="mb-4">
+                    The new layout couldn't be saved.{' '}
+                    {errorMessage(saveLayout.error)}
+                </Alert>
+            )}
+
+            {instances.isPending ? (
+                <div className="flex justify-center mt-12">
+                    <Spinner label="Loading dashboard" />
                 </div>
-            </header>
-
-            <main className="p-6">
-                <OAuthNotice />
-                {saveLayout.isError && (
-                    <Alert className="mb-4">
-                        The new layout couldn't be saved.{' '}
-                        {errorMessage(saveLayout.error)}
-                    </Alert>
-                )}
-
-                {instances.isPending ? (
-                    <div className="flex justify-center mt-12">
-                        <Spinner label="Loading dashboard" />
-                    </div>
-                ) : instances.isError ? (
-                    <Alert
-                        action={
-                            <Button
-                                variant="secondary"
-                                onClick={() => instances.refetch()}
-                            >
-                                Try again
-                            </Button>
-                        }
-                    >
-                        {errorMessage(instances.error)}
-                    </Alert>
-                ) : (
-                    <WidgetGrid
-                        instances={list}
-                        onEdit={(instance) => setEditingId(instance.id)}
-                        onDelete={(instance) => setDeletingId(instance.id)}
-                        onMove={handleMove}
-                        onSetApiKey={(instance) => setApiKeyId(instance.id)}
-                    />
-                )}
-            </main>
+            ) : instances.isError ? (
+                <Alert
+                    action={
+                        <Button
+                            variant="secondary"
+                            onClick={() => instances.refetch()}
+                        >
+                            Try again
+                        </Button>
+                    }
+                >
+                    {errorMessage(instances.error)}
+                </Alert>
+            ) : (
+                <WidgetGrid
+                    instances={list}
+                    onEdit={(instance) => setEditingId(instance.id)}
+                    onDelete={(instance) => setDeletingId(instance.id)}
+                    onMove={handleMove}
+                    onSetApiKey={(instance) => setApiKeyId(instance.id)}
+                />
+            )}
 
             <AddWidgetDialog
                 open={adding}
@@ -137,7 +120,7 @@ export default function Dashboard() {
                 instances={list}
             />
             <ApiKeyDialog
-                instance={apiKeyFor}
+                serviceId={apiKeyFor?.serviceId ?? null}
                 onClose={() => setApiKeyId(null)}
             />
             <ConfirmDialog
@@ -150,6 +133,6 @@ export default function Dashboard() {
                 onConfirm={handleDelete}
                 onCancel={cancelDelete}
             />
-        </div>
+        </AppShell>
     )
 }
