@@ -3,6 +3,8 @@ import type { Instance, InstanceParams } from './dashboard/types'
 import AdviceWidget from './widgets/AdviceWidget'
 import FreeGames from './widgets/epic-games/free-games/FreeGames'
 import { parseFreeGames } from './widgets/epic-games/free-games/parse'
+import ContributionsWidget from './widgets/github/contributions/ContributionsWidget'
+import { parseContributions } from './widgets/github/contributions/parse'
 import NotificationsWidget from './widgets/github/notifications/NotificationsWidget'
 import { parseNotifications } from './widgets/github/notifications/parse'
 import LetterboxdWidget from './widgets/LetterboxdWidget'
@@ -126,6 +128,14 @@ const githubNotifications = defineWidget({
     minSize: { w: 3, h: 3 },
 })
 
+// Wide enough for 53 weeks of cells to stay readable.
+const githubContributions = defineWidget({
+    component: ContributionsWidget,
+    parse: parseContributions,
+    defaultSize: { w: 8, h: 4 },
+    minSize: { w: 5, h: 3 },
+})
+
 // Sized for a whole pack: eleven cards in two rows under the picker.
 const boosterOpener = defineWidget({
     component: BoosterOpener,
@@ -153,6 +163,7 @@ const entries: Record<string, WidgetEntry> = {
     'nasa/apod': apod,
     'nasa/neows': neo,
     'github/notifications': githubNotifications,
+    'github/contribution_stat_card': githubContributions,
     'epic_games/free_games': freeGames,
     'pokemon_tcg/booster_opener': boosterOpener,
 }
