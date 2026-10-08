@@ -1,1 +1,88 @@
 @import "tailwindcss";
+
+/*
+ * Semantic colour tokens. Components use the token utilities (bg-page, text-fg,
+ * border-border, ...) and never raw palette classes, so a theme is one block of
+ * CSS. The @theme values are the dark theme and are the default: an absent or
+ * unknown data-theme renders dark. Light overrides the same tokens below.
+ */
+@theme {
+    --color-page: var(--color-gray-900);
+    --color-surface: var(--color-gray-800);
+    --color-surface-raised: var(--color-gray-700);
+    --color-surface-inset: color-mix(
+        in oklab,
+        var(--color-gray-900) 40%,
+        transparent
+    );
+    --color-neutral: var(--color-gray-600);
+    --color-neutral-hover: var(--color-gray-500);
+    --color-border: var(--color-gray-600);
+    --color-field-border: var(--color-gray-700);
+    --color-fg: var(--color-white);
+    --color-fg-secondary: var(--color-gray-300);
+    --color-muted: var(--color-gray-400);
+    --color-primary: var(--color-blue-600);
+    --color-primary-hover: var(--color-blue-700);
+    --color-on-accent: var(--color-white);
+    --color-link: var(--color-blue-400);
+    --color-focus: var(--color-blue-500);
+    --color-danger: var(--color-red-600);
+    --color-danger-hover: var(--color-red-700);
+    --color-danger-fg: var(--color-red-400);
+    --color-danger-subtle: color-mix(
+        in oklab,
+        var(--color-red-950) 50%,
+        transparent
+    );
+    --color-danger-border: var(--color-red-800);
+    --color-success-fg: var(--color-emerald-300);
+    --color-success-subtle: color-mix(
+        in oklab,
+        var(--color-emerald-950) 50%,
+        transparent
+    );
+    --color-success-border: var(--color-emerald-800);
+    --color-warning-fg: var(--color-amber-400);
+    --color-info: var(--color-sky-300);
+}
+
+:root {
+    color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+    color-scheme: light;
+
+    --color-page: var(--color-gray-100);
+    --color-surface: var(--color-white);
+    --color-surface-raised: var(--color-gray-100);
+    --color-surface-inset: var(--color-gray-100);
+    --color-neutral: var(--color-gray-200);
+    --color-neutral-hover: var(--color-gray-300);
+    --color-border: var(--color-gray-300);
+    --color-field-border: var(--color-gray-500);
+    --color-fg: var(--color-gray-900);
+    --color-fg-secondary: var(--color-gray-700);
+    --color-muted: var(--color-gray-600);
+    --color-primary: var(--color-blue-600);
+    --color-primary-hover: var(--color-blue-700);
+    --color-on-accent: var(--color-white);
+    --color-link: var(--color-blue-700);
+    --color-focus: var(--color-blue-600);
+    --color-danger: var(--color-red-600);
+    --color-danger-hover: var(--color-red-700);
+    --color-danger-fg: var(--color-red-700);
+    --color-danger-subtle: var(--color-red-50);
+    --color-danger-border: var(--color-red-200);
+    --color-success-fg: var(--color-green-800);
+    --color-success-subtle: var(--color-emerald-50);
+    --color-success-border: var(--color-emerald-200);
+    --color-warning-fg: var(--color-amber-800);
+    --color-info: var(--color-sky-700);
+}
+
+body {
+    background-color: var(--color-page);
+    color: var(--color-fg);
+}
