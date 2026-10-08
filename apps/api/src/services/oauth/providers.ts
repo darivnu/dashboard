@@ -214,7 +214,7 @@ export function createGitHubLoginProvider(config: OAuthClientConfig): LoginProvi
 
             return {
                 providerUserId: String(user.id),
-                email: primary?.verified ? primary.email : null,
+                email: primary?.verified ? primary.email : null, //if not verified, then null
             }
         },
     }
