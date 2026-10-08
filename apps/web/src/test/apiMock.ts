@@ -27,6 +27,7 @@ export const apiMock = {
     verifyEmail: vi.fn(),
     resendVerification: vi.fn(),
     me: vi.fn(),
+    deleteAccount: vi.fn(),
     logout: vi.fn(),
 }
 
@@ -37,7 +38,7 @@ export const apiModule = {
             register: { post: apiMock.register },
             'verify-email': { post: apiMock.verifyEmail },
             'resend-verification': { post: apiMock.resendVerification },
-            me: { get: apiMock.me },
+            me: { get: apiMock.me, delete: apiMock.deleteAccount },
             logout: { post: apiMock.logout },
         },
         catalog: { get: apiMock.catalog },

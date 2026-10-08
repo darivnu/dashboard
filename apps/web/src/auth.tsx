@@ -17,6 +17,8 @@ type AuthContextType = {
     login: (email: string, password: string) => Promise<void>
     /** same failures as login; the user stays logged in when it throws */
     logout: () => Promise<void>
+    /** same failures as logout; the user stays logged in when it throws */
+    deleteAccount: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType>(null!)
@@ -53,8 +55,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         queryClient.clear()
     }
 
+    const deleteAccount = async () => {
+        // Throws when the server refused: the account is still there then, and
+        // the session with it, so the user stays logged in. On success the
+        // server has already expired the session cookie in its response.
+        unwrap(await api.auth.me.delete())
+        setUser(null)
+        queryClient.clear()
+    }
+
     return (
-        <AuthContext.Provider value={{ user, loading, login, logout }}>
+        <AuthContext.Provider
+            value={{ user, loading, login, logout, deleteAccount }}
+        >
             {children}
         </AuthContext.Provider>
     )
