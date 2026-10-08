@@ -107,7 +107,7 @@ export default function Login() {
                     Continue with GitHub
                 </Button>
 
-                <p className="text-gray-300 text-sm text-center">
+                <p className="text-fg-secondary text-sm text-center">
                     Don't have an account?{' '}
                     <Link to="/register" className="text-link underline">
                         Sign up

@@ -7,4 +7,3 @@ TODO.*
 .vercel
 .env.*
 !.env.example
-*_LOGIN.md
