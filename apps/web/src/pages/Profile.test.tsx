@@ -2,17 +2,23 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { ApiError } from '../components/dashboard/queries'
 import { apiMock, fail, makeInstance, ok, resetApiMock } from '../test/apiMock'
 import { renderWithQuery } from '../test/renderWithQuery'
 import Profile from './Profile'
 
 const createdAt = new Date('2026-09-15T10:00:00Z')
 
+// A stable mock across renders, so a test can script deleteAccount and assert
+// on it. vi.hoisted makes it exist before the hoisted vi.mock factory runs.
+const { deleteAccountMock } = vi.hoisted(() => ({ deleteAccountMock: vi.fn() }))
+
 vi.mock('../api', async () => (await import('../test/apiMock')).apiModule)
 vi.mock('../auth', () => ({
     useAuth: () => ({
         user: { id: 'u1', email: 'me@example.com', role: 'user', createdAt },
         logout: vi.fn(),
+        deleteAccount: deleteAccountMock,
     }),
 }))
 
@@ -94,6 +100,8 @@ function buttonNames(scope: ReturnType<typeof within>) {
 
 beforeEach(() => {
     resetApiMock()
+    deleteAccountMock.mockReset()
+    deleteAccountMock.mockResolvedValue(undefined)
     serveCatalog(openService, keyService(), oauthService())
     apiMock.listInstances.mockResolvedValue(ok({ instances: [] }))
 })
@@ -133,6 +141,118 @@ describe('Account', () => {
         expect(
             section('Account').getByText('Member since 15/09/2026'),
         ).toBeVisible()
+    })
+})
+
+describe('Account: deleting the account', () => {
+    // The trigger lives in the Account section; the confirmation dialog is
+    // rendered apart, so this only ever finds the trigger.
+    function deleteButton() {
+        return section('Account').getByRole('button', {
+            name: 'Delete account',
+        })
+    }
+
+    async function askToDelete() {
+        await userEvent.click(deleteButton())
+        return within(screen.getByRole('dialog'))
+    }
+
+    test('the Account section has a Delete account button', () => {
+        renderProfile()
+
+        expect(deleteButton()).toBeVisible()
+    })
+
+    test('clicking it asks for confirmation, warning it cannot be undone', async () => {
+        renderProfile()
+
+        const dialog = await askToDelete()
+
+        expect(
+            screen.getByRole('dialog', { name: 'Delete account' }),
+        ).toBeVisible()
+        expect(dialog.getByText(/cannot be undone/i)).toBeVisible()
+        expect(deleteAccountMock).not.toHaveBeenCalled()
+    })
+
+    test('Cancel closes the dialog and deletes nothing', async () => {
+        renderProfile()
+        const dialog = await askToDelete()
+
+        await userEvent.click(dialog.getByRole('button', { name: 'Cancel' }))
+
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        expect(deleteAccountMock).not.toHaveBeenCalled()
+    })
+
+    test('confirming calls deleteAccount once', async () => {
+        renderProfile()
+        const dialog = await askToDelete()
+
+        await userEvent.click(
+            dialog.getByRole('button', { name: 'Delete account' }),
+        )
+
+        await waitFor(() => expect(deleteAccountMock).toHaveBeenCalledTimes(1))
+    })
+
+    test('the confirm button is disabled while the request runs', async () => {
+        let respond: () => void = () => {}
+        deleteAccountMock.mockReturnValue(
+            new Promise<void>((resolve) => {
+                respond = resolve
+            }),
+        )
+        renderProfile()
+        const dialog = await askToDelete()
+
+        await userEvent.click(
+            dialog.getByRole('button', { name: 'Delete account' }),
+        )
+
+        expect(
+            dialog.getByRole('button', { name: 'Delete account' }),
+        ).toBeDisabled()
+        expect(screen.getByRole('dialog')).toBeVisible()
+
+        respond()
+    })
+
+    test('a refusal keeps the dialog open with the reason', async () => {
+        deleteAccountMock.mockRejectedValue(
+            new ApiError(500, 'INTERNAL', 'Something went wrong.'),
+        )
+        renderProfile()
+        const dialog = await askToDelete()
+
+        await userEvent.click(
+            dialog.getByRole('button', { name: 'Delete account' }),
+        )
+
+        expect(await dialog.findByRole('alert')).toHaveTextContent(
+            'Something went wrong.',
+        )
+        expect(
+            screen.getByRole('dialog', { name: 'Delete account' }),
+        ).toBeVisible()
+        expect(
+            dialog.getByRole('button', { name: 'Delete account' }),
+        ).toBeEnabled()
+    })
+
+    test('a network failure keeps the dialog open and says the server was not reached', async () => {
+        deleteAccountMock.mockRejectedValue(new TypeError('Failed to fetch'))
+        renderProfile()
+        const dialog = await askToDelete()
+
+        await userEvent.click(
+            dialog.getByRole('button', { name: 'Delete account' }),
+        )
+
+        expect(await dialog.findByRole('alert')).toHaveTextContent(
+            "Couldn't reach the dashboard server.",
+        )
     })
 })
 

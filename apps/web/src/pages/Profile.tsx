@@ -14,7 +14,29 @@ import AppShell from '../components/layout/AppShell'
 import Button from '../components/ui/Button'
 
 export default function Profile() {
-    const { user } = useAuth()
+    const { user, deleteAccount } = useAuth()
+    const [confirming, setConfirming] = useState(false)
+    const [deleting, setDeleting] = useState(false)
+    const [deleteError, setDeleteError] = useState<string | null>(null)
+
+    const handleDelete = async () => {
+        setDeleting(true)
+        setDeleteError(null)
+        try {
+            await deleteAccount()
+            // On success the user becomes null and ProtectedRoute sends the
+            // browser to /login; this page unmounts, so nothing to reset here.
+        } catch (error) {
+            setDeleteError(errorMessage(error))
+            setDeleting(false)
+        }
+    }
+
+    const closeConfirm = () => {
+        setConfirming(false)
+        setDeleting(false)
+        setDeleteError(null)
+    }
 
     return (
         <AppShell>
@@ -39,6 +61,13 @@ export default function Profile() {
                             </p>
                         </div>
                     )}
+                    <Button
+                        variant="danger"
+                        className="mt-4"
+                        onClick={() => setConfirming(true)}
+                    >
+                        Delete account
+                    </Button>
                 </section>
 
                 <section aria-labelledby="profile-services">
@@ -53,6 +82,17 @@ export default function Profile() {
                     </CatalogLoader>
                 </section>
             </div>
+
+            <ConfirmDialog
+                open={confirming}
+                title="Delete account"
+                message="This permanently deletes your account and everything in it: your widgets, your service connections and their saved keys. It cannot be undone."
+                confirmLabel="Delete account"
+                busy={deleting}
+                error={deleteError}
+                onConfirm={handleDelete}
+                onCancel={closeConfirm}
+            />
         </AppShell>
     )
 }
