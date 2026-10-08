@@ -5,14 +5,14 @@ type Props = InputHTMLAttributes<HTMLInputElement> & {
 }
 
 const base =
-    'w-full p-2 rounded-lg bg-gray-700 text-white placeholder-gray-400 outline-none focus:ring-2 disabled:opacity-50'
+    'w-full p-2 rounded-lg bg-surface-raised text-fg placeholder-muted border border-field-border outline-none focus:ring-2 disabled:opacity-50'
 
 export default function Input({
     invalid = false,
     className = '',
     ...rest
 }: Props) {
-    const ring = invalid ? 'ring-2 ring-red-500' : 'focus:ring-blue-500'
+    const ring = invalid ? 'ring-2 ring-danger' : 'focus:ring-focus'
     return (
         <input
             aria-invalid={invalid || undefined}

@@ -20,7 +20,7 @@ export default function WidgetGrid({
 }: Props) {
     if (instances.length === 0) {
         return (
-            <p className="text-gray-400 text-center text-lg mt-12">
+            <p className="text-muted text-center text-lg mt-12">
                 No widgets yet — click "Add Widget" to start.
             </p>
         )

@@ -16,7 +16,7 @@ function Section({ title, games, upcoming, now }: SectionProps) {
 
     return (
         <section>
-            <h4 className="mb-2 font-semibold text-gray-400 text-xs uppercase tracking-wide">
+            <h4 className="mb-2 font-semibold text-muted text-xs uppercase tracking-wide">
                 {title}
             </h4>
             {/* As many columns as fit, each at least 10rem wide. */}
@@ -41,7 +41,7 @@ export default function FreeGames({ data }: WidgetViewProps<FreeGamesData>) {
     const now = Date.now()
 
     if (data.current.length === 0 && data.upcoming.length === 0) {
-        return <p className="text-gray-400 text-sm">No free games right now.</p>
+        return <p className="text-muted text-sm">No free games right now.</p>
     }
 
     return (

@@ -7,7 +7,7 @@ test('is an error alert by default', () => {
     render(<Alert>The service isn't responding right now.</Alert>)
     const alert = screen.getByRole('alert')
     expect(alert).toHaveTextContent("The service isn't responding right now.")
-    expect(alert).toHaveClass('text-red-200')
+    expect(alert).toHaveClass('text-danger-fg')
 })
 
 test('an info alert is a polite status', () => {

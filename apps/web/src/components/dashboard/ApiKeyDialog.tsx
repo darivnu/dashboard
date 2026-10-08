@@ -103,10 +103,10 @@ function ApiKeyForm({ service, fields, onClose }: FormProps) {
         <form onSubmit={handleSubmit} noValidate>
             {serverError && <Alert className="mb-3">{serverError}</Alert>}
 
-            <p className="text-gray-300 text-sm mb-1">
+            <p className="text-fg-secondary text-sm mb-1">
                 This key is used by all your {service.name} widgets.
             </p>
-            <p className="text-gray-400 text-sm mb-3">
+            <p className="text-muted text-sm mb-3">
                 {statusMessage(service.subscription)}
             </p>
 

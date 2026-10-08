@@ -34,11 +34,11 @@ export default function Field({
         <div className="mb-3">
             <label
                 htmlFor={htmlFor}
-                className="text-gray-300 text-sm block mb-1"
+                className="text-fg-secondary text-sm block mb-1"
             >
                 {label}
                 {required && (
-                    <span className="text-red-400" aria-hidden="true">
+                    <span className="text-danger-fg" aria-hidden="true">
                         {' '}
                         *
                     </span>
@@ -46,10 +46,7 @@ export default function Field({
             </label>
             {children}
             {hint && (
-                <p
-                    id={`${htmlFor}-hint`}
-                    className="text-gray-400 text-xs mt-1"
-                >
+                <p id={`${htmlFor}-hint`} className="text-muted text-xs mt-1">
                     {hint}
                 </p>
             )}
@@ -57,7 +54,7 @@ export default function Field({
                 <p
                     id={`${htmlFor}-error`}
                     role="alert"
-                    className="text-red-400 text-sm mt-1"
+                    className="text-danger-fg text-sm mt-1"
                 >
                     {error}
                 </p>

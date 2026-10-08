@@ -14,8 +14,8 @@ export default function ApodWidget({ data }: WidgetViewProps<ApodData>) {
 
     return (
         <div className="flex flex-col gap-2 h-full">
-            <h4 className="text-white font-semibold">{data.title}</h4>
-            <p className="text-gray-300 text-sm">
+            <h4 className="text-fg font-semibold">{data.title}</h4>
+            <p className="text-fg-secondary text-sm">
                 {new Date(data.date).toLocaleDateString()}
             </p>
             {data.media_type === 'image' ? (
@@ -29,7 +29,7 @@ export default function ApodWidget({ data }: WidgetViewProps<ApodData>) {
                     href={data.permalink}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-blue-400 underline"
+                    className="text-link underline"
                 >
                     Today's APOD is a video, watch it here
                 </a>
@@ -38,13 +38,13 @@ export default function ApodWidget({ data }: WidgetViewProps<ApodData>) {
             <button
                 type="button"
                 onClick={() => setShowExplanation(!showExplanation)}
-                className="text-gray-400 hover:text-white text-sm self-start"
+                className="text-muted hover:text-fg text-sm self-start"
             >
                 {showExplanation ? 'Hide explanation ▲' : 'Show explanation ▼'}
             </button>
 
             {showExplanation && (
-                <p className="text-gray-300 text-sm">{data.explanation}</p>
+                <p className="text-fg-secondary text-sm">{data.explanation}</p>
             )}
         </div>
     )

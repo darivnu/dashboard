@@ -19,19 +19,19 @@ export default function Profile() {
     return (
         <AppShell>
             <div className="mx-auto max-w-3xl">
-                <h1 className="mb-6 text-2xl font-bold text-white">Profile</h1>
+                <h1 className="mb-6 text-2xl font-bold text-fg">Profile</h1>
 
                 <section aria-labelledby="profile-account" className="mb-8">
                     <h2
                         id="profile-account"
-                        className="mb-3 text-lg font-semibold text-white"
+                        className="mb-3 text-lg font-semibold text-fg"
                     >
                         Account
                     </h2>
                     {user && (
-                        <div className="rounded-xl bg-gray-800 p-4">
-                            <p className="break-all text-white">{user.email}</p>
-                            <p className="text-sm text-gray-400">
+                        <div className="rounded-xl bg-surface p-4">
+                            <p className="break-all text-fg">{user.email}</p>
+                            <p className="text-sm text-muted">
                                 Member since{' '}
                                 {new Date(user.createdAt).toLocaleDateString(
                                     DATE_LOCALE,
@@ -44,7 +44,7 @@ export default function Profile() {
                 <section aria-labelledby="profile-services">
                     <h2
                         id="profile-services"
-                        className="mb-3 text-lg font-semibold text-white"
+                        className="mb-3 text-lg font-semibold text-fg"
                     >
                         Services
                     </h2>
@@ -119,9 +119,7 @@ function ServiceList({ services }: { services: CatalogService[] }) {
 
     if (listed.length === 0) {
         return (
-            <p className="text-gray-400">
-                No service needs an account or a key.
-            </p>
+            <p className="text-muted">No service needs an account or a key.</p>
         )
     }
 
@@ -129,7 +127,7 @@ function ServiceList({ services }: { services: CatalogService[] }) {
         <>
             <ul
                 ref={list}
-                className="divide-y divide-gray-700 rounded-xl bg-gray-800 px-4"
+                className="divide-y divide-field-border rounded-xl bg-surface px-4"
             >
                 {listed.map((service) => (
                     <ServiceRow
@@ -221,9 +219,9 @@ function ServiceRow({ service, onSetApiKey, onDisconnect }: RowProps) {
             className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"
         >
             <div className="min-w-0">
-                <h3 className="break-words font-semibold text-white">{name}</h3>
+                <h3 className="break-words font-semibold text-fg">{name}</h3>
                 <p
-                    className={`text-sm ${refused ? 'text-amber-400' : 'text-gray-400'}`}
+                    className={`text-sm ${refused ? 'text-warning-fg' : 'text-muted'}`}
                 >
                     {statusLabel(service)}
                 </p>
