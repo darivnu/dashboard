@@ -14,7 +14,7 @@ import { Link } from 'react-router'
 const MenuContext = createContext<(refocus?: boolean) => void>(() => {})
 
 const itemClass =
-    'block w-full px-3 py-2 text-left text-sm text-gray-200 hover:bg-gray-700 focus:bg-gray-700 focus:outline-hidden'
+    'block w-full px-3 py-2 text-left text-sm text-fg-secondary hover:bg-surface-raised focus:bg-surface-raised focus:outline-hidden'
 
 // Read from the page each time: the items are whatever the children drew.
 function itemsOf(root: HTMLElement | null) {
@@ -113,7 +113,7 @@ export default function Menu({ label, trigger, children }: Props) {
                 aria-expanded={open}
                 onClick={() => setOpen(!open)}
                 onKeyDown={handleKeyDown}
-                className="block rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                className="block rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg"
             >
                 {trigger}
             </button>
@@ -122,7 +122,7 @@ export default function Menu({ label, trigger, children }: Props) {
                     role="menu"
                     aria-label={label}
                     onKeyDown={handleKeyDown}
-                    className="absolute right-0 top-full z-20 mt-2 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-gray-700 bg-gray-800 py-1 shadow-lg"
+                    className="absolute right-0 top-full z-20 mt-2 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-field-border bg-surface py-1 shadow-lg"
                 >
                     <MenuContext.Provider value={close}>
                         {children}

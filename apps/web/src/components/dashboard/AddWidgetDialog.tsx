@@ -46,7 +46,7 @@ function AddWidgetContent({ services, instances, onClose }: ContentProps) {
             <>
                 {services.map((service) => (
                     <section key={service.id} className="mb-4">
-                        <h3 className="text-gray-300 font-semibold mb-2">
+                        <h3 className="text-fg-secondary font-semibold mb-2">
                             {service.name}
                         </h3>
                         {service.widgets.map((widget) => (
@@ -54,12 +54,12 @@ function AddWidgetContent({ services, instances, onClose }: ContentProps) {
                                 key={widget.id}
                                 type="button"
                                 onClick={() => setSelected({ service, widget })}
-                                className="w-full text-left p-3 mb-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition"
+                                className="w-full text-left p-3 mb-2 rounded-lg bg-surface-raised hover:bg-neutral transition"
                             >
                                 <span className="block font-semibold">
                                     {widget.name}
                                 </span>
-                                <span className="block text-gray-400 text-sm">
+                                <span className="block text-muted text-sm">
                                     {widget.description}
                                 </span>
                             </button>

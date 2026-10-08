@@ -173,7 +173,7 @@ function DataShell({
         <>
             {isRefreshing && <Spinner label="Refreshing" className="h-3 w-3" />}
             {refreshFailed && (
-                <span className="text-amber-400 text-xs" title={refreshFailed}>
+                <span className="text-warning-fg text-xs" title={refreshFailed}>
                     Refresh failed
                     <span className="sr-only">: {refreshFailed}</span>
                 </span>
@@ -181,7 +181,7 @@ function DataShell({
             {fetchedAt && (
                 <time
                     dateTime={fetchedAt.toISOString()}
-                    className="text-gray-400 text-xs"
+                    className="text-muted text-xs"
                 >
                     {formatTime(fetchedAt)}
                 </time>
@@ -220,10 +220,10 @@ function Frame({
     return (
         <article
             aria-label={title}
-            className="bg-gray-800 rounded-xl p-4 flex flex-col gap-2 h-full min-h-0"
+            className="bg-surface rounded-xl p-4 flex flex-col gap-2 h-full min-h-0"
         >
             <header className="flex flex-wrap justify-between items-center gap-2">
-                <h3 className="text-white font-semibold truncate">{title}</h3>
+                <h3 className="text-fg font-semibold truncate">{title}</h3>
                 <div className="flex items-center gap-2">
                     {status}
                     {onRefresh && (

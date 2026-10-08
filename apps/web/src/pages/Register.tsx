@@ -8,7 +8,7 @@ import Field, { describedBy } from '../components/ui/Field'
 import Input from '../components/ui/Input'
 
 const passwordHint = 'At least 8 characters'
-const linkClass = 'text-blue-400 hover:text-blue-300 underline'
+const linkClass = 'text-link underline'
 
 export default function Register() {
     const [email, setEmail] = useState('')
@@ -34,9 +34,9 @@ export default function Register() {
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-900">
-            <div className="bg-gray-800 p-8 rounded-xl w-full max-w-md flex flex-col gap-4">
-                <h1 className="text-2xl font-bold text-white text-center">
+        <div className="min-h-screen flex items-center justify-center">
+            <div className="bg-surface p-8 rounded-xl w-full max-w-md flex flex-col gap-4">
+                <h1 className="text-2xl font-bold text-fg text-center">
                     Create account
                 </h1>
 
@@ -101,7 +101,7 @@ export default function Register() {
                             </Button>
                         </form>
 
-                        <p className="text-gray-300 text-sm text-center">
+                        <p className="text-fg-secondary text-sm text-center">
                             Already have an account?{' '}
                             <Link to="/login" className={linkClass}>
                                 Log in

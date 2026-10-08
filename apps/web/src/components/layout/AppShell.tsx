@@ -32,8 +32,8 @@ export default function AppShell({ actions, children }: Props) {
     }
 
     return (
-        <div className="min-h-screen bg-gray-900">
-            <header className="flex items-center gap-4 p-4 bg-gray-800 text-white">
+        <div className="min-h-screen bg-page">
+            <header className="flex items-center gap-4 p-4 bg-surface text-fg">
                 <Link
                     to="/dashboard"
                     className="min-w-0 truncate text-xl font-bold"
@@ -45,14 +45,14 @@ export default function AppShell({ actions, children }: Props) {
                     <Menu
                         label="Account menu"
                         trigger={
-                            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 font-semibold hover:bg-blue-500">
+                            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary font-semibold hover:bg-primary-hover">
                                 {email.charAt(0).toUpperCase()}
                             </span>
                         }
                     >
                         <p
                             title={email}
-                            className="truncate border-b border-gray-700 px-3 py-2 text-sm text-gray-400"
+                            className="truncate border-b border-field-border px-3 py-2 text-sm text-muted"
                         >
                             {email}
                         </p>

@@ -6,11 +6,11 @@ const base =
     'rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed'
 
 const variants: Record<Variant, string> = {
-    primary: 'px-4 py-2 bg-blue-600 text-white hover:bg-blue-500',
-    secondary: 'px-4 py-2 bg-gray-600 text-white hover:bg-gray-500',
-    danger: 'px-4 py-2 bg-red-600 text-white hover:bg-red-500',
-    ghost: 'px-1 text-sm text-gray-400 hover:text-white',
-    dangerGhost: 'text-sm text-red-400 hover:text-red-300',
+    primary: 'px-4 py-2 bg-primary text-on-accent hover:bg-primary-hover',
+    secondary: 'px-4 py-2 bg-neutral text-fg hover:bg-neutral-hover',
+    danger: 'px-4 py-2 bg-danger text-on-accent hover:bg-danger-hover',
+    ghost: 'px-1 text-sm text-muted hover:text-fg',
+    dangerGhost: 'text-sm text-danger-fg hover:underline',
 }
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {

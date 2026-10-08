@@ -285,9 +285,9 @@ export default function Globe({ stations, playingId, onPlay }: Props) {
                 element's position, so inset-0 would not size it. */}
             <div ref={containerRef} className="h-full w-full rounded-lg" />
             {choices && (
-                <div className="absolute inset-2 overflow-auto rounded-lg bg-gray-800/95 p-3">
+                <div className="absolute inset-2 overflow-auto rounded-lg bg-surface/95 p-3">
                     <div className="flex justify-between items-center mb-2">
-                        <h4 className="text-white font-semibold">
+                        <h4 className="text-fg font-semibold">
                             {choices.length} stations here
                         </h4>
                         <Button
@@ -302,7 +302,7 @@ export default function Globe({ stations, playingId, onPlay }: Props) {
                             <li key={station.id}>
                                 <button
                                     type="button"
-                                    className="w-full text-left p-2 rounded text-gray-200 hover:bg-gray-700"
+                                    className="w-full text-left p-2 rounded text-fg-secondary hover:bg-surface-raised"
                                     onClick={() => {
                                         setChoices(null)
                                         onPlay(station)

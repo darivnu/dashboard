@@ -48,19 +48,19 @@ test('each variant has its own colour', () => {
         </>,
     )
     expect(screen.getByRole('button', { name: 'Delete' })).toHaveClass(
-        'text-red-400',
+        'text-danger-fg',
     )
     expect(screen.getByRole('button', { name: 'Primary' })).toHaveClass(
-        'bg-blue-600',
+        'bg-primary',
     )
     expect(screen.getByRole('button', { name: 'Secondary' })).toHaveClass(
-        'bg-gray-600',
+        'bg-neutral',
     )
     expect(screen.getByRole('button', { name: 'Danger' })).toHaveClass(
-        'bg-red-600',
+        'bg-danger',
     )
     expect(screen.getByRole('button', { name: 'Ghost' })).toHaveClass(
-        'text-gray-400',
+        'text-muted',
     )
 })
 
@@ -68,6 +68,6 @@ test('keeps extra classes passed by the caller', () => {
     render(<Button className="w-full">Wide</Button>)
     expect(screen.getByRole('button', { name: 'Wide' })).toHaveClass(
         'w-full',
-        'bg-blue-600',
+        'bg-primary',
     )
 })

@@ -76,7 +76,7 @@ export default function PackCard({ card, revealed, onReveal }: Props) {
                         <CardBack />
                     </div>
 
-                    <div className="backface-hidden absolute inset-0 rotate-y-180 overflow-hidden rounded-lg bg-gray-700">
+                    <div className="backface-hidden absolute inset-0 rotate-y-180 overflow-hidden rounded-lg bg-surface-raised">
                         {/* The picture is in the page from the start so it
                             is already loaded when the card turns; it has no
                             text until then, so nothing reads it out early. */}
@@ -90,7 +90,7 @@ export default function PackCard({ card, revealed, onReveal }: Props) {
                             />
                         )}
                         {image === null && revealed && (
-                            <div className="flex size-full items-center justify-center p-2 text-center text-gray-300 text-sm">
+                            <div className="flex size-full items-center justify-center p-2 text-center text-fg-secondary text-sm">
                                 {card.name}
                             </div>
                         )}
@@ -110,10 +110,10 @@ export default function PackCard({ card, revealed, onReveal }: Props) {
             </div>
 
             {revealed && (
-                <p className="text-center text-gray-300 text-xs">
+                <p className="text-center text-fg-secondary text-xs">
                     {card.rarity}
                     {print !== null && (
-                        <span className="ml-1 font-semibold text-sky-300">
+                        <span className="ml-1 font-semibold text-info">
                             · {print}
                         </span>
                     )}
