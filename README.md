@@ -1,6 +1,6 @@
 # Dashboard
 
-prod: https://dashboard-api-puce.vercel.app/
+Prod: https://dashboard-api-puce.vercel.app/
 
 Bun workspace: `apps/api` (Elysia + PostgreSQL) and `apps/web` (Vite).
 
