@@ -18,13 +18,24 @@ The subject asks for both: authentication "with credentials … or via OIDC", an
 authorization "via OAuth 2.0", linking "the third-party account to an existing platform
 user". GitHub is the only provider today (`services/oauth/ids.ts`).
 
-1. [Setting up a provider app (GitHub)](#1-setting-up-a-provider-app-github)
-2. [Connecting a service with OAuth](#2-connecting-a-service-with-oauth)
-3. [Logging in with OAuth](#3-logging-in-with-oauth)
-4. [Adding a new provider](#4-adding-a-new-provider)
-5. [Rules that apply to both](#5-rules-that-apply-to-both)
-6. [Checking that it works](#6-checking-that-it-works)
-7. [Known limitations and what could be done better](#7-known-limitations-and-what-could-be-done-better)
+- [Handling OAuth](#handling-oauth)
+  - [1. Setting up a provider app (GitHub)](#1-setting-up-a-provider-app-github)
+  - [2. Connecting a service with OAuth](#2-connecting-a-service-with-oauth)
+    - [Declaring it](#declaring-it)
+    - [The flow](#the-flow)
+    - [Where the pieces live](#where-the-pieces-live)
+    - [The token's life](#the-tokens-life)
+    - [Error codes (`?oauth_error=` on `/dashboard`)](#error-codes-oauth_error-on-dashboard)
+  - [3. Logging in with OAuth](#3-logging-in-with-oauth)
+    - [The flow](#the-flow-1)
+    - [Where the pieces live](#where-the-pieces-live-1)
+    - [`auth_identities`](#auth_identities)
+    - [Which user the GitHub account logs in as](#which-user-the-github-account-logs-in-as)
+    - [Error codes (`?oauth_error=` on `/login`)](#error-codes-oauth_error-on-login)
+  - [4. Adding a new provider](#4-adding-a-new-provider)
+  - [5. What both flows have in common](#5-what-both-flows-have-in-common)
+  - [6. Checking that it works](#6-checking-that-it-works)
+  - [7. Known limitations and what could be done better](#7-known-limitations-and-what-could-be-done-better)
 
 ---
 
@@ -85,7 +96,7 @@ auth: { kind: 'oauth2', provider: 'github', scopes: ['notifications'] },
 
 Nothing else is needed for a provider that already exists. How to write the service
 and its widgets, the `ctx.getAccessToken()` call in `fetch()`, scopes and GitHub's API
-rules are in [ADDING_A_SERVICE.md, section 2](ADDING_A_SERVICE.md#2-github-a-new-widget-or-service-on-the-github-account).
+specifics are in [ADDING_A_SERVICE.md, section 2](ADDING_A_SERVICE.md#2-github-a-new-widget-or-service-on-the-github-account).
 
 ### The flow
 
@@ -167,7 +178,7 @@ GET /api/auth/oauth/github/callback?code=…&state=…
                         • state matches, < 10 min, no ?error=, same session as at the start
                         • provider.identify(code): code → token → GET /user (id) + GET /user/emails
                           (the primary entry, only if verified). The token is dropped here
-                        • linking rules (below) → a user
+                        • find, link or create the user (below)
                         • create a session, exactly like POST /api/auth/login, set the session cookie
                         • 302 → WEB_URL/dashboard
 any failure → 302 → WEB_URL/login?oauth_error=<code>, no session cookie
@@ -182,7 +193,7 @@ picks up the session. The login page (`pages/Login.tsx`) shows the button and th
 | File | Does |
 |---|---|
 | `modules/auth/oauth-login.routes.ts` | the two routes, the `oauth_login` cookie, state / expiry / session checks, redirects |
-| `modules/auth/auth.service.ts` | `loginWithProvider` (the linking rules) and `startSession` (shared with password login) |
+| `modules/auth/auth.service.ts` | `loginWithProvider` (finds, links or creates the user) and `startSession` (shared with password login) |
 | `modules/auth/auth.repo.ts` | `findUserByIdentity`, `linkIdentity`, `createUser` (accepts a null password) |
 | `services/oauth/providers.ts` | `LoginProvider` adapters (`createGitHubLoginProvider`), `getLoginProvider()`, `loginCallbackUrl()` |
 | `db/schema.ts` | the `auth_identities` table |
@@ -202,24 +213,24 @@ One row per provider account that can log in as a user:
 Unique on `(provider, provider_user_id)`: one GitHub account belongs to one user at most.
 No column for a token, on purpose.
 
-### Linking rules
+### Which user the GitHub account logs in as
 
-Checked in this order by `loginWithProvider`. The email is GitHub's primary email, and
-only when GitHub marks it verified. Without one, the login is refused before anything
-is read or written.
+`loginWithProvider` checks these situations in this order and stops at the first that
+matches. The email is GitHub's primary email, and only when GitHub marks it verified.
+Without one, the login is refused before anything is read or written.
 
-| Rule | Situation | What happens |
-|---|---|---|
-| **a** | already logged in when the flow started | link the GitHub account to that user. Already theirs: nothing to do. Someone else's: refused, `identity_taken` |
-| **b** | the GitHub account is already linked | log in as its user |
-| **c** | a **verified** user has the same email | link to that user, log in |
-| **c'** | an **unverified** user has the same email | refused, `email_unverified`. See [section 7](#7-known-limitations-and-what-could-be-done-better) |
-| **d** | none of the above | create a user with no password and a verified email, link, log in |
+| Situation | What happens |
+|---|---|
+| already logged in when the flow started | link the GitHub account to that user. Already theirs: nothing to do. Someone else's: refused, `identity_taken` |
+| the GitHub account is already linked | log in as its user |
+| a **verified** user has the same email | link to that user, log in |
+| an **unverified** user has the same email | refused, `email_unverified`. See [section 7](#7-known-limitations-and-what-could-be-done-better) |
+| none of the above | create a user with no password and a verified email, link, log in |
 
-Then a disabled user is refused (`account_disabled`) whichever rule found them. Every
+Then a disabled user is refused (`account_disabled`), however they were found. Every
 refusal happens before the session is created.
 
-An account created by rule d has `password_hash = null`. Password login for it fails with
+An account created by GitHub login has `password_hash = null`. Password login for it fails with
 `INVALID_CREDENTIALS` in the same time as a wrong password: `login()` verifies against
 `DUMMY_PASSWORD_HASH` when the hash is null.
 
@@ -234,8 +245,8 @@ An account created by rule d has `password_hash = null`. Password login for it f
 | `exchange_failed` | trading the code, or `/user` / `/user/emails`, failed |
 | `session_mismatch` | logged in or out in another tab during the flow |
 | `no_verified_email` | GitHub's primary email is missing or unverified |
-| `email_unverified` | rule c' |
-| `identity_taken` | rule a, the GitHub account belongs to another user |
+| `email_unverified` | a local account with that email exists but was never verified |
+| `identity_taken` | logged in, but the GitHub account belongs to another user |
 | `account_disabled` | the user found is disabled |
 
 The messages are in `oauthErrorMessages` in `pages/Login.tsx`. The codes are part of
@@ -283,12 +294,12 @@ which is optional: a provider can be used for services only.
      `githubLoginUrl()` in `api.ts`. The error messages there name GitHub, so make them
      generic or per provider.
 
-   The routes, the linking rules and the `auth_identities` table already take the provider
+   The routes, `loginWithProvider` and the `auth_identities` table already take the provider
    as a parameter: nothing changes there.
 
 ---
 
-## 5. Rules that apply to both
+## 5. What both flows have in common
 
 - **The browser navigates to these routes, it never fetches them.** Both flows set a cookie
   on the first route and read it on the callback, and browsers refuse cookies from
@@ -323,9 +334,9 @@ which is optional: a provider can be used for services only.
 |---|---|---|
 | 1 | Add a GitHub widget, click **Connect** | Back on the dashboard with "… is connected"; the widget loads |
 | 2 | Profile page → disconnect GitHub | Subscription gone; Connect asks for consent again |
-| 3 | Log out, **Continue with GitHub** with a GitHub email unknown to the app | On `/dashboard`; new user with `password_hash` null; one `auth_identities` row (rule d) |
-| 4 | Log out, GitHub login again | Same user, no new rows (rule b) |
-| 5 | Register and verify with your GitHub primary email, log out, GitHub login | Logged in as that user, identity added (rule c) |
+| 3 | Log out, **Continue with GitHub** with a GitHub email unknown to the app | On `/dashboard`; new user with `password_hash` null; one `auth_identities` row |
+| 4 | Log out, GitHub login again | Same user, no new rows |
+| 5 | Register and verify with your GitHub primary email, log out, GitHub login | Logged in as that user, identity added |
 | 6 | Register with that email but don't verify, GitHub login | `/login` with `email_unverified`; nothing changed in the database |
 | 7 | Set `disabled_at` on the user, GitHub login | `account_disabled`, no session cookie |
 | 8 | Cancel on GitHub's page | `denied` |
@@ -338,47 +349,16 @@ which is optional: a provider can be used for services only.
 
 ## 7. Known limitations and what could be done better
 
-### Unverified accounts with the same email (rule c'), not fixed on purpose
-
-**What we do.** If a local account with GitHub's email exists but was **never verified**,
-GitHub login is refused with `email_unverified`. Nothing is created, linked or changed.
-
-**Why we can't just link it.** Its password was chosen by whoever registered it, and we
-never proved that person owns the email. An attacker can register `victim@example.com` with
-a password they know, without being able to verify it. If GitHub login marked that account
-verified and linked it, the real owner would start using it while the attacker's password
-still works. This is **pre-account hijacking**, and rule c' blocks it.
-
-**What is still wrong.** The person who registered first squats the email. The real owner
-can't log in with GitHub (`email_unverified`) and can't register (`EMAIL_TAKEN`). Their only
-way in is the verification link in their own inbox, which gives them an account whose
-password the attacker knows, with no way to change it until password reset (#11) exists.
-
-**The better fix: take the account over**, in one transaction:
-1. set `email_verified_at = now()`: GitHub just proved the person owns the email;
-2. set `password_hash = null`: the squatter's password stops working;
-3. delete the user's `sessions` rows (there shouldn't be any: an unverified account can't log in);
-4. delete their pending `email_verification` tokens, so an old link does nothing later;
-5. apply rule c: link and log in.
-
-It's one more repo method (`takeOverUnverifiedUser`), called by rule c' instead of
-throwing. The legitimate owner loses nothing: the account was never usable. Extra hardening:
-expire unverified accounts after N days, and mail the owner when a takeover happens.
-
-### Other things that could be better
-
 - **The login token is left valid at GitHub.** It isn't stored, so nobody can use it, but
   `DELETE /applications/{client_id}/token` (that token only, **not** `/grant`) right after
   `identify()` would end it. It would also keep the user far from GitHub's limit of 10
   tokens per user, app and scope set, after which GitHub silently revokes the oldest.
-- **No UI for rule a.** Linking GitHub to an existing account works in the backend, but
+- **No UI for linking while logged in.** Linking GitHub to an existing account works in the backend, but
   nothing in the frontend starts the flow while logged in (the login page is for guests).
   A "Link GitHub" button on the Profile page would.
 - **No unlinking**, and no way to set a password on a GitHub-only account (needs #11).
-- **Rule d isn't one transaction.** If linking fails after the user is created, the next
-  login matches rule c and links it, so it heals itself; a transaction would make that path
-  never happen.
-- **Tests.** The linking rules can be tested with a fake `LoginProvider`, like the
+- **Tests.** `loginWithProvider` can be tested with a fake `LoginProvider`, like the
   subscription flow is with `providers.fakes.ts`. `auth.fakes.ts` also still lacks
   `findUserByIdentity` and `linkIdentity`.
 - **One provider.** GitHub only; section 4 is the way to add more.
+- **Temp.** If a local account with GitHub's email exists but was never verified, GitHub login is refused with `email_unverified`. Nothing is created, linked or changed.
