@@ -21,6 +21,12 @@ export const preferences = {
         values: ['dark', 'light'],
         fallback: 'dark',
     },
+    textSize: {
+        key: 'dashboard.textSize',
+        attribute: 'data-text-size',
+        values: ['small', 'default', 'large', 'xlarge'],
+        fallback: 'default',
+    },
 } satisfies Record<string, PreferenceDef>
 
 export type PreferenceName = keyof typeof preferences

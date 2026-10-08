@@ -16,6 +16,12 @@
             values: ["dark", "light"],
             fallback: "dark",
           },
+          {
+            key: "dashboard.textSize",
+            attribute: "data-text-size",
+            values: ["small", "default", "large", "xlarge"],
+            fallback: "default",
+          },
         ];
         for (var i = 0; i < prefs.length; i++) {
           var p = prefs[i];

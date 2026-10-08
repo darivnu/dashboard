@@ -16,11 +16,10 @@ vi.mock('../auth', () => ({
     }),
 }))
 
-const ATTR = 'data-theme'
-
 beforeEach(() => {
     localStorage.clear()
-    document.documentElement.removeAttribute(ATTR)
+    document.documentElement.removeAttribute('data-theme')
+    document.documentElement.removeAttribute('data-text-size')
 })
 
 function renderSettings() {
@@ -31,51 +30,67 @@ function renderSettings() {
     )
 }
 
-function themeGroup() {
-    return within(screen.getByRole('group', { name: 'Theme' }))
+function group(name: string) {
+    return within(screen.getByRole('group', { name }))
 }
 
-describe('Settings: appearance / theme', () => {
-    test('offers a Dark and a Light choice, Dark active by default', () => {
+describe('Settings: text size', () => {
+    test('offers the four steps, Default selected on first visit', () => {
         renderSettings()
 
         expect(
-            themeGroup().getByRole('button', { name: 'Dark' }),
-        ).toHaveAttribute('aria-pressed', 'true')
+            group('Text size')
+                .getAllByRole('radio')
+                .map((r) => r.getAttribute('value')),
+        ).toEqual(['small', 'default', 'large', 'xlarge'])
         expect(
-            themeGroup().getByRole('button', { name: 'Light' }),
-        ).toHaveAttribute('aria-pressed', 'false')
+            group('Text size').getByRole('radio', { name: 'Default' }),
+        ).toBeChecked()
     })
 
-    test('choosing Light switches the theme and sets data-theme on <html>', async () => {
+    test('choosing a step sets data-text-size on <html> and stores it', async () => {
         renderSettings()
 
         await userEvent.click(
-            themeGroup().getByRole('button', { name: 'Light' }),
+            group('Text size').getByRole('radio', { name: 'Large' }),
         )
 
-        expect(document.documentElement.getAttribute(ATTR)).toBe('light')
+        expect(document.documentElement.getAttribute('data-text-size')).toBe(
+            'large',
+        )
+        expect(localStorage.getItem('dashboard.textSize')).toBe('large')
         expect(
-            themeGroup().getByRole('button', { name: 'Light' }),
-        ).toHaveAttribute('aria-pressed', 'true')
+            group('Text size').getByRole('radio', { name: 'Large' }),
+        ).toBeChecked()
+    })
+})
+
+describe('Settings: theme', () => {
+    test('offers Light and Dark, Dark selected by default', () => {
+        renderSettings()
+
         expect(
-            themeGroup().getByRole('button', { name: 'Dark' }),
-        ).toHaveAttribute('aria-pressed', 'false')
+            group('Theme')
+                .getAllByRole('radio')
+                .map((r) => r.getAttribute('value')),
+        ).toEqual(['light', 'dark'])
+        expect(
+            group('Theme').getByRole('radio', { name: 'Dark' }),
+        ).toBeChecked()
     })
 
-    test('choosing Dark again switches back', async () => {
+    test('choosing Light switches the theme on <html>', async () => {
         renderSettings()
-        await userEvent.click(
-            themeGroup().getByRole('button', { name: 'Light' }),
-        )
 
         await userEvent.click(
-            themeGroup().getByRole('button', { name: 'Dark' }),
+            group('Theme').getByRole('radio', { name: 'Light' }),
         )
 
-        expect(document.documentElement.getAttribute(ATTR)).toBe('dark')
+        expect(document.documentElement.getAttribute('data-theme')).toBe(
+            'light',
+        )
         expect(
-            themeGroup().getByRole('button', { name: 'Dark' }),
-        ).toHaveAttribute('aria-pressed', 'true')
+            group('Theme').getByRole('radio', { name: 'Light' }),
+        ).toBeChecked()
     })
 })

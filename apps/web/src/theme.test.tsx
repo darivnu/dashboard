@@ -10,6 +10,7 @@ const ATTR = 'data-theme'
 beforeEach(() => {
     localStorage.clear()
     document.documentElement.removeAttribute(ATTR)
+    document.documentElement.removeAttribute('data-text-size')
 })
 
 describe('getThemePreference / setThemePreference', () => {
@@ -74,5 +75,23 @@ describe('the index.html inline script', () => {
         new Function(inlineScript())()
 
         expect(document.documentElement.getAttribute(ATTR)).toBe('dark')
+    })
+
+    test('also applies the stored text size', () => {
+        localStorage.setItem('dashboard.textSize', 'large')
+
+        new Function(inlineScript())()
+
+        expect(document.documentElement.getAttribute('data-text-size')).toBe(
+            'large',
+        )
+    })
+
+    test('falls back to the default text size when nothing is stored', () => {
+        new Function(inlineScript())()
+
+        expect(document.documentElement.getAttribute('data-text-size')).toBe(
+            'default',
+        )
     })
 })

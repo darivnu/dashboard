@@ -86,3 +86,21 @@ body {
     background-color: var(--color-page);
     color: var(--color-fg);
 }
+
+/*
+ * Text size steps. Set as a percentage of the root font size (never px), so the
+ * choice multiplies the browser's own font-size setting instead of overriding
+ * it. "default" is the browser default, so it needs no rule. Tailwind spacing is
+ * rem-based, so spacing grows with the text.
+ */
+html[data-text-size="small"] {
+    font-size: 87.5%;
+}
+
+html[data-text-size="large"] {
+    font-size: 125%;
+}
+
+html[data-text-size="xlarge"] {
+    font-size: 150%;
+}
