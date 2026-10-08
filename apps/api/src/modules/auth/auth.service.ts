@@ -4,7 +4,10 @@ import type { Mailer } from '../../lib/mailer'
 import { DUMMY_PASSWORD_HASH, hashPassword, verifyPassword } from '../../lib/password'
 import { generateToken, hashToken } from '../../lib/tokens'
 import type { SessionUser } from '../../plugins/session'
+import type { OAuthProviderId } from '../../services/oauth/ids'
+import type { ProviderIdentity } from '../../services/oauth/providers'
 import type { ServiceSubscriptionInstance } from '../subscriptions/subscriptions.repo'
+import { OAuthFlowError } from '../subscriptions/subscriptions.service'
 import type { SubscriptionsService } from '../subscriptions/subscriptions.service'
 import type { AuthRepo, User } from './auth.repo'
 
@@ -86,6 +89,25 @@ export function createAuthService({ repo, mailer, subscriptions, now = () => new
       }
   }
 
+  /** The end of every login, by password or by provider: a new session for this user. */
+  async function startSession(
+      user: User | SessionUser,
+      userAgent: string | null,
+      ip: string | null,
+  ): Promise<{ token: string; expiresAt: Date; user: PublicUser }> {
+      const token = generateToken()
+      const expiresAt = new Date(now().getTime() + env.sessionTtlDays * DAY_MS)
+      await repo.createSession({
+          userId: user.id,
+          tokenHash: hashToken(token),
+          expiresAt,
+          userAgent,
+          ip,
+      })
+
+      return { token, expiresAt, user: toPublicUser(user) }
+  }
+
   return {
       async register(input: { email: string; password: string }): Promise<PublicUser> {
           const email = normalizeEmail(input.email)
@@ -149,17 +171,64 @@ export function createAuthService({ repo, mailer, subscriptions, now = () => new
               throw new AppError(403, 'EMAIL_NOT_VERIFIED', 'Verify your email before logging in')
           }
 
-          const token = generateToken()
-          const expiresAt = new Date(now().getTime() + env.sessionTtlDays * DAY_MS)
-          await repo.createSession({
-              userId: user.id,
-              tokenHash: hashToken(token),
-              expiresAt,
-              userAgent: input.userAgent,
-              ip: input.ip,
-          })
+          return startSession(user, input.userAgent, input.ip)
+      },
 
-          return { token, expiresAt, user: toPublicUser(user) }
+      /**
+       * Logging in with a provider, once it told us who the user is. The
+       * linking rules:
+       * a. logged in already: link the provider account to that user;
+       * b. provider account already linked: log in as its user;
+       * c. a verified user has the same email: link it, log in as them;
+       *    (c'. that user is not verified: refused)
+       * d. otherwise: a new verified user without a password.
+       * Every refusal throws before the session is created.
+       */
+      async loginWithProvider(input: {
+          provider: OAuthProviderId
+          identity: ProviderIdentity
+          sessionUser: SessionUser | null
+          userAgent: string | null
+          ip: string | null
+      }): Promise<{ token: string; expiresAt: Date; user: PublicUser }> {
+          const { provider, identity, sessionUser } = input
+          if (!identity.email)
+              throw new OAuthFlowError('no_verified_email')
+          const email = normalizeEmail(identity.email)
+          // A small helper function, not a call: nothing is written to the database on this line.
+          // link(someUserId) inserts the auth_identities row "this GitHub account logs in as someUserId".
+          // Everything but the user id is the same in rules a, c and d, so it is filled in once here,
+          // and each rule below only says WHICH user to link: link(sessionUser.id) or link(user.id).
+          const link =(userId: string) => repo.linkIdentity({ userId, provider, providerUserId: identity.providerUserId, email })
+
+          const owner = await repo.findUserByIdentity(provider, identity.providerUserId)
+
+          // a. loadUser never returns a disabled user, so no disabled check here
+          if (sessionUser) { // logged in already
+              if (owner && owner.id !== sessionUser.id)
+                  throw new OAuthFlowError('identity_taken')
+              if (!owner)
+                  await link(sessionUser.id)
+              return startSession(sessionUser, input.userAgent, input.ip)
+          }
+
+          let user = owner // b.
+          if (!user) {
+              user = await repo.findUserByEmail(email)
+              if (user && !user.emailVerifiedAt)
+                  throw new OAuthFlowError('email_unverified') // c'.
+              if (!user) {
+                  // d. undefined = someone took the email between the two queries
+                  user = await repo.createUser({ email, passwordHash: null, emailVerifiedAt: now() })
+                  if (!user)
+                      throw new OAuthFlowError('provider_error')
+              }
+              await link(user.id) // c. and d.
+          }
+
+          if (user.disabledAt)
+              throw new OAuthFlowError('account_disabled')
+          return startSession(user, input.userAgent, input.ip)
       },
 
       async logout(token: unknown): Promise<void> {

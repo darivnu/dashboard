@@ -38,6 +38,11 @@ export type OAuthErrorCode =
     | 'provider_error' //the provider sent back another error
     | 'session_mismatch' //logged in as someone else than who started the flow
     | 'exchange_failed' //trading the code for a token failed
+    // only when logging in with a provider (auth.service.ts loginWithProvider)
+    | 'no_verified_email' //the provider's primary email is missing or not verified
+    | 'email_unverified' //a local account with that email exists but was never verified
+    | 'identity_taken' //logged in, but this provider account is linked to another user
+    | 'account_disabled'
 
 export class OAuthFlowError extends Error {
     constructor(public readonly code: OAuthErrorCode) {
