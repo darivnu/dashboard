@@ -42,8 +42,8 @@ export default function AdviceWidget({
         return () => clearInterval(interval)
     }, [])
 
-    if (error) return <p className="text-red-400 text-sm">{error}</p>
-    if (!data) return <p className="text-gray-400 text-sm">Loading...</p>
+    if (error) return <p className="text-danger-fg text-sm">{error}</p>
+    if (!data) return <p className="text-muted text-sm">Loading...</p>
 
-    return <p className="text-white text-lg italic">“{data.advice}”</p>
+    return <p className="text-fg text-lg italic">“{data.advice}”</p>
 }

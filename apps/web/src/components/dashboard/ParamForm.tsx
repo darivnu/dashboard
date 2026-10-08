@@ -39,7 +39,7 @@ export default function ParamForm({
 }: Props) {
     if (params.length === 0) {
         return (
-            <p className="text-gray-400 text-sm mb-3">
+            <p className="text-muted text-sm mb-3">
                 This widget has no settings.
             </p>
         )

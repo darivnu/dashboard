@@ -66,7 +66,7 @@ export function defineWidget<Data>(
 // Componente placeholder para widgets que aún no tienen componente propio
 function DefaultWidget({ params }: WidgetProps) {
     return (
-        <div className="text-gray-400 text-sm">
+        <div className="text-muted text-sm">
             <p>Widget not implemented yet</p>
             <p className="text-xs mt-1">{JSON.stringify(params)}</p>
         </div>

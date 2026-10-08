@@ -55,23 +55,25 @@ export default function VerifyEmail() {
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-900">
-            <div className="bg-gray-800 p-8 rounded-xl w-full max-w-md flex flex-col gap-4 text-center">
+        <div className="min-h-screen flex items-center justify-center">
+            <div className="bg-surface p-8 rounded-xl w-full max-w-md flex flex-col gap-4 text-center">
                 {status === 'verifying' && (
-                    <h1 className="text-2xl font-bold text-white">
+                    <h1 className="text-2xl font-bold text-fg">
                         Verifying your email…
                     </h1>
                 )}
 
                 {status === 'verified' && (
                     <>
-                        <h1 className="text-2xl font-bold text-white">
+                        <h1 className="text-2xl font-bold text-fg">
                             Email verified
                         </h1>
-                        <p className="text-gray-300">Your account is ready.</p>
+                        <p className="text-fg-secondary">
+                            Your account is ready.
+                        </p>
                         <Link
                             to="/login"
-                            className="p-3 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-500 transition"
+                            className="p-3 rounded-lg bg-primary text-on-accent font-semibold hover:bg-primary-hover transition"
                         >
                             Log in
                         </Link>
@@ -80,12 +82,12 @@ export default function VerifyEmail() {
 
                 {status === 'invalid' && (
                     <>
-                        <h1 className="text-2xl font-bold text-white">
+                        <h1 className="text-2xl font-bold text-fg">
                             This link is invalid or has expired
                         </h1>
 
                         {resent ? (
-                            <p className="text-gray-300">
+                            <p className="text-fg-secondary">
                                 If an account with that email is waiting for
                                 verification, a new link is on its way.
                             </p>
@@ -94,7 +96,7 @@ export default function VerifyEmail() {
                                 onSubmit={handleResend}
                                 className="flex flex-col text-left"
                             >
-                                <p className="text-gray-300 text-center mb-4">
+                                <p className="text-fg-secondary text-center mb-4">
                                     Enter your email to receive a new link.
                                 </p>
                                 {resendError && (

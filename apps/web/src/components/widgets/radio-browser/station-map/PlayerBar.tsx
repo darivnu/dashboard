@@ -22,9 +22,7 @@ export default function PlayerBar({ player }: Props) {
 
     if (!station) {
         return (
-            <p className="text-gray-400 text-sm p-2">
-                Click a station to listen.
-            </p>
+            <p className="text-muted text-sm p-2">Click a station to listen.</p>
         )
     }
 
@@ -37,28 +35,28 @@ export default function PlayerBar({ player }: Props) {
                 <img
                     src={station.favicon ?? undefined}
                     alt=""
-                    className="h-8 w-8 shrink-0 rounded object-cover bg-gray-700"
+                    className="h-8 w-8 shrink-0 rounded object-cover bg-surface-raised"
                     onError={() => setBrokenIconOf(station.id)}
                 />
             ) : (
                 <span
                     aria-hidden="true"
-                    className="h-8 w-8 shrink-0 rounded bg-gray-700 text-gray-400 flex items-center justify-center"
+                    className="h-8 w-8 shrink-0 rounded bg-surface-raised text-muted flex items-center justify-center"
                 >
                     ♪
                 </span>
             )}
 
             <div className="min-w-0 flex-1">
-                <p className="text-white font-semibold truncate">
+                <p className="text-fg font-semibold truncate">
                     {station.name || 'Unnamed station'}
                 </p>
                 <p
                     role="status"
                     className={
                         status === 'failed'
-                            ? 'text-red-400 text-xs'
-                            : 'text-gray-400 text-xs'
+                            ? 'text-danger-fg text-xs'
+                            : 'text-muted text-xs'
                     }
                 >
                     {statusText[status]}

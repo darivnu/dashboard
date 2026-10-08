@@ -26,7 +26,7 @@ export default function ConfirmDialog({
     return (
         <Dialog open={open} onClose={onCancel} title={title}>
             {error && <Alert className="mb-3">{error}</Alert>}
-            <p className="text-gray-300 mb-4">{message}</p>
+            <p className="text-fg-secondary mb-4">{message}</p>
             <div className="flex justify-end gap-3">
                 <Button variant="secondary" onClick={onCancel}>
                     Cancel

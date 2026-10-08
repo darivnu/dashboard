@@ -37,22 +37,22 @@ function humanize(value: string) {
 
 function NotificationRow({ notification }: { notification: Notification }) {
     return (
-        <li className="flex flex-col gap-1 rounded-lg bg-gray-900/40 px-3 py-2">
+        <li className="flex flex-col gap-1 rounded-lg bg-surface-inset px-3 py-2">
             <a
                 href={notification.url}
                 target="_blank"
                 rel="noreferrer"
-                className="truncate font-medium text-white hover:underline"
+                className="truncate font-medium text-fg hover:underline"
                 title={notification.title}
             >
                 {notification.title}
             </a>
-            <div className="flex items-baseline justify-between gap-2 text-xs text-gray-400">
+            <div className="flex items-baseline justify-between gap-2 text-xs text-muted">
                 <a
                     href={notification.repoUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="truncate hover:text-gray-200"
+                    className="truncate hover:text-fg-secondary"
                 >
                     {notification.repo}
                 </a>
@@ -75,16 +75,16 @@ export default function NotificationsWidget({
     return (
         <div className="flex h-full flex-col gap-3">
             <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold tabular-nums text-white">
+                <span className="text-3xl font-bold tabular-nums text-fg">
                     {total}
                 </span>
-                <span className="text-sm text-gray-300">
+                <span className="text-sm text-fg-secondary">
                     unread notification{data.count === 1 ? '' : 's'}
                 </span>
             </div>
 
             {data.items.length === 0 ? (
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-muted">
                     All caught up. Nothing unread.
                 </p>
             ) : (

@@ -120,7 +120,7 @@ export default function BoosterOpener({
             {error !== null && <Alert>{error}</Alert>}
 
             {selected === null && (
-                <p className="text-gray-400 text-sm">
+                <p className="text-muted text-sm">
                     Choose a collection to open a pack.
                 </p>
             )}
@@ -146,7 +146,7 @@ export default function BoosterOpener({
                         ))}
                     </div>
                     {pack.extras.length > 0 && (
-                        <p className="text-gray-400 text-xs">
+                        <p className="text-muted text-xs">
                             Also in the pack: {pack.extras.join(', ')}
                         </p>
                     )}

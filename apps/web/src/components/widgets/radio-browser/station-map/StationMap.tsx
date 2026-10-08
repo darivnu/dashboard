@@ -22,9 +22,7 @@ export default function StationMap({ data }: WidgetViewProps<StationMapData>) {
         <div className="h-full flex flex-col gap-2">
             <div className="relative flex-1 min-h-0">
                 {stations.length === 0 ? (
-                    <p className="text-gray-400 text-sm">
-                        No stations to show.
-                    </p>
+                    <p className="text-muted text-sm">No stations to show.</p>
                 ) : (
                     <Globe
                         stations={stations}

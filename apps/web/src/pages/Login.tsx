@@ -61,9 +61,9 @@ export default function Login() {
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-900">
-            <div className="bg-gray-800 p-8 rounded-xl w-full max-w-md flex flex-col gap-4">
-                <h1 className="text-2xl font-bold text-white text-center">
+        <div className="min-h-screen flex items-center justify-center">
+            <div className="bg-surface p-8 rounded-xl w-full max-w-md flex flex-col gap-4">
+                <h1 className="text-2xl font-bold text-fg text-center">
                     Log in
                 </h1>
 
@@ -109,10 +109,7 @@ export default function Login() {
 
                 <p className="text-gray-300 text-sm text-center">
                     Don't have an account?{' '}
-                    <Link
-                        to="/register"
-                        className="text-blue-400 hover:text-blue-300 underline"
-                    >
+                    <Link to="/register" className="text-link underline">
                         Sign up
                     </Link>
                 </p>

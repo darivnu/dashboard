@@ -4,6 +4,36 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dashboard</title>
+    <script>
+      // Set attribute-backed preferences on <html> before the bundle loads, so
+      // the first paint is never the wrong theme. This cannot import, so the
+      // table is inlined; keep it in step with src/preferences.ts.
+      (function () {
+        var prefs = [
+          {
+            key: "dashboard.theme",
+            attribute: "data-theme",
+            values: ["dark", "light"],
+            fallback: "dark",
+          },
+          {
+            key: "dashboard.textSize",
+            attribute: "data-text-size",
+            values: ["small", "default", "large", "xlarge"],
+            fallback: "default",
+          },
+        ];
+        for (var i = 0; i < prefs.length; i++) {
+          var p = prefs[i];
+          var value = p.fallback;
+          try {
+            var stored = localStorage.getItem(p.key);
+            if (stored && p.values.indexOf(stored) !== -1) value = stored;
+          } catch (e) {}
+          document.documentElement.setAttribute(p.attribute, value);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

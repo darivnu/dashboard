@@ -11,7 +11,7 @@ type Props = {
 }
 
 const selectClass =
-    'min-w-0 max-w-full rounded-lg bg-gray-700 p-2 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500'
+    'min-w-0 max-w-full rounded-lg bg-surface-raised p-2 text-sm text-fg outline-none focus:ring-2 focus:ring-focus'
 
 // Pull rates are only published for a few collections; for the others the
 // list says how far the odds can be trusted.

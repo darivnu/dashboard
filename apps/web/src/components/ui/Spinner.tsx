@@ -8,7 +8,7 @@ export default function Spinner({ label = 'Loading', className = '' }: Props) {
         <span
             role="status"
             aria-label={label}
-            className={`inline-block h-5 w-5 animate-spin rounded-full border-2 border-gray-500 border-t-white ${className}`}
+            className={`inline-block h-5 w-5 animate-spin rounded-full border-2 border-border border-t-fg ${className}`}
         />
     )
 }

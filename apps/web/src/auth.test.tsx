@@ -14,7 +14,7 @@ const user = { id: 'u1', email: 'me@example.com', role: 'user' }
 // Shows what the context holds, and what a login or logout attempt resolved
 // or threw.
 function Probe() {
-    const { user, loading, login, logout } = useAuth()
+    const { user, loading, login, logout, deleteAccount } = useAuth()
     const [outcome, setOutcome] = useState('')
 
     const attempt = async () => {
@@ -46,6 +46,17 @@ function Probe() {
                 }
             >
                 log out
+            </button>
+            <button
+                type="button"
+                onClick={() =>
+                    deleteAccount().then(
+                        () => setOutcome('account deleted'),
+                        (error) => setOutcome(`other: ${String(error)}`),
+                    )
+                }
+            >
+                delete account
             </button>
             <p>{outcome}</p>
         </>
@@ -169,6 +180,63 @@ test('a logout the server refuses throws, and keeps the user and the cache', asy
     client.setQueryData(['instances'], [{ id: 'my-widget' }])
 
     await userEvent.click(screen.getByRole('button', { name: 'log out' }))
+
+    expect(
+        await screen.findByText('other: ApiError: Something broke'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('me@example.com')).toBeInTheDocument()
+    expect(client.getQueryCache().getAll()).toHaveLength(1)
+})
+
+test('deleteAccount tells the API, forgets the user and empties the query cache', async () => {
+    apiMock.me.mockResolvedValue(ok(user))
+    apiMock.deleteAccount.mockResolvedValue(ok({ ok: true }))
+    const { client } = renderProbe()
+    await screen.findByText('me@example.com')
+    client.setQueryData(['instances'], [{ id: 'widget-of-the-last-user' }])
+
+    await userEvent.click(
+        screen.getByRole('button', { name: 'delete account' }),
+    )
+
+    expect(await screen.findByText('account deleted')).toBeInTheDocument()
+    expect(apiMock.deleteAccount).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('no user')).toBeInTheDocument()
+    expect(client.getQueryCache().getAll()).toEqual([])
+})
+
+test('a deleteAccount that never reaches the server keeps the user and the cache', async () => {
+    apiMock.me.mockResolvedValue(ok(user))
+    apiMock.deleteAccount.mockRejectedValue(new TypeError('Failed to fetch'))
+    const { client } = renderProbe()
+    await screen.findByText('me@example.com')
+    client.setQueryData(['instances'], [{ id: 'my-widget' }])
+
+    await userEvent.click(
+        screen.getByRole('button', { name: 'delete account' }),
+    )
+
+    await waitFor(() =>
+        expect(
+            screen.getByText('other: TypeError: Failed to fetch'),
+        ).toBeInTheDocument(),
+    )
+    expect(screen.getByText('me@example.com')).toBeInTheDocument()
+    expect(client.getQueryCache().getAll()).toHaveLength(1)
+})
+
+test('a deleteAccount the server refuses throws, and keeps the user and the cache', async () => {
+    apiMock.me.mockResolvedValue(ok(user))
+    apiMock.deleteAccount.mockResolvedValue(
+        fail(500, 'INTERNAL', 'Something broke'),
+    )
+    const { client } = renderProbe()
+    await screen.findByText('me@example.com')
+    client.setQueryData(['instances'], [{ id: 'my-widget' }])
+
+    await userEvent.click(
+        screen.getByRole('button', { name: 'delete account' }),
+    )
 
     expect(
         await screen.findByText('other: ApiError: Something broke'),
