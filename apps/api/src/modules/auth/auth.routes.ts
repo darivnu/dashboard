@@ -10,7 +10,8 @@ import { createAuthService } from './auth.service'
 
 // Deleting an account revokes the user's OAuth tokens, which is the subscriptions service's job.
 const subscriptions = createSubscriptionsService(subscriptionsRepo, getProvider)
-const authService = createAuthService({ repo: authRepo, mailer, subscriptions })
+// Exported for oauth-login.routes.ts, so both route files share one service.
+export const authService = createAuthService({ repo: authRepo, mailer, subscriptions })
 
 const publicUser = t.Object({
     id: t.String({ format: 'uuid' }),
