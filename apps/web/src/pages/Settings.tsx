@@ -1,45 +1,55 @@
 import AppShell from '../components/layout/AppShell'
-import Button from '../components/ui/Button'
+import RadioGroup from '../components/ui/RadioGroup'
+import { TEXT_SIZES, useTextSize } from '../textSize'
 import { type Theme, useTheme } from '../theme'
 
-const OPTIONS: { value: Theme; label: string }[] = [
-    { value: 'dark', label: 'Dark' },
+const THEME_OPTIONS: { value: Theme; label: string }[] = [
     { value: 'light', label: 'Light' },
+    { value: 'dark', label: 'Dark' },
 ]
 
 export default function Settings() {
     const { theme, setTheme } = useTheme()
+    const { textSize, setTextSize } = useTextSize()
 
     return (
         <AppShell>
             <div className="mx-auto max-w-3xl">
                 <h1 className="mb-6 text-2xl font-bold text-fg">Settings</h1>
 
-                <section aria-labelledby="settings-appearance">
+                <section aria-labelledby="settings-text-size" className="mb-8">
                     <h2
-                        id="settings-appearance"
+                        id="settings-text-size"
                         className="mb-3 text-lg font-semibold text-fg"
                     >
-                        Appearance
+                        Text size
                     </h2>
                     <div className="rounded-xl bg-surface p-4">
-                        <p className="mb-3 text-sm text-muted">Theme</p>
-                        <fieldset aria-label="Theme" className="flex gap-2">
-                            {OPTIONS.map(({ value, label }) => (
-                                <Button
-                                    key={value}
-                                    variant={
-                                        theme === value
-                                            ? 'primary'
-                                            : 'secondary'
-                                    }
-                                    aria-pressed={theme === value}
-                                    onClick={() => setTheme(value)}
-                                >
-                                    {label}
-                                </Button>
-                            ))}
-                        </fieldset>
+                        <RadioGroup
+                            legend="Text size"
+                            name="text-size"
+                            options={TEXT_SIZES}
+                            value={textSize}
+                            onChange={setTextSize}
+                        />
+                    </div>
+                </section>
+
+                <section aria-labelledby="settings-theme">
+                    <h2
+                        id="settings-theme"
+                        className="mb-3 text-lg font-semibold text-fg"
+                    >
+                        Theme
+                    </h2>
+                    <div className="rounded-xl bg-surface p-4">
+                        <RadioGroup
+                            legend="Theme"
+                            name="theme"
+                            options={THEME_OPTIONS}
+                            value={theme}
+                            onChange={setTheme}
+                        />
                     </div>
                 </section>
             </div>
