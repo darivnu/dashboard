@@ -33,7 +33,7 @@ You never edit them.
 | `oauth2` | the user logs into their account at the provider | clicks **Connect**, accepts on the provider's page | `ctx.http`, `ctx.getAccessToken()` |
 
 `oauth2` only works with a provider the API already knows (`services/oauth/ids.ts`, `github`
-today). For a new one, see [section 3](#3-a-new-oauth-provider-spotify-google) first. How
+and `spotify` today). For a new one, see [section 3](#3-a-new-oauth-provider-spotify-google) first. How
 the Connect flow, token storage and refresh work is in [HANDLING_OAUTH.md](HANDLING_OAUTH.md).
 
 ### Step 2: the backend definition

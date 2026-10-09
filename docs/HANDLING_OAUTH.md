@@ -16,7 +16,7 @@ everything after the provider sends the user back is different:
 
 The subject asks for both: authentication "with credentials … or via OIDC", and
 authorization "via OAuth 2.0", linking "the third-party account to an existing platform
-user". GitHub is the only provider today (`services/oauth/ids.ts`).
+user". GitHub and Spotify are the providers today (`services/oauth/ids.ts`); only GitHub is used to log in.
 
 - [Handling OAuth](#handling-oauth)
   - [1. Setting up a provider app (GitHub)](#1-setting-up-a-provider-app-github)

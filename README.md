@@ -101,3 +101,31 @@ Notes:
 - The Redirect URIs contain `APP_URL`, so production needs its own app, with the deployed API's URL in both.
 - Service tokens are stored encrypted with `MASTER_KEY`; changing that key means every user has to connect again. Logging in stores no GitHub token.
 - How both flows work, and how to add another provider: [`docs/HANDLING_OAUTH.md`](docs/HANDLING_OAUTH.md).
+
+## Spotify (OAuth)
+
+One Spotify app connects the Spotify service, which has one widget: **Recently played**, the last tracks the connected account listened to (cover, track, artists, when it was played), with a configurable number of rows (1 to 20). Spotify is not used to log in. Without these variables the API still boots, but the Spotify service shows as unavailable and its Connect button is disabled.
+
+It only works on the deployed site: Spotify refuses `http://localhost` redirect URIs (HTTPS or an explicit `127.0.0.1` loopback only), and this project runs locally on `localhost`. Leave the variables unset locally. To enable it in production:
+
+1. https://developer.spotify.com/dashboard → Create app. Under "Which API/SDKs are you planning to use?" select **Web API**.
+2. Redirect URI: the production `APP_URL` + `/api/subscriptions/oauth/spotify/callback`. It must match exactly.
+3. Settings → User Management: add the name and Spotify e-mail of every account that will connect (see the limits below).
+4. Settings → Basic Information: copy the Client ID and the client secret, and set them in the Vercel project of the API:
+
+```sh
+OAUTH_SPOTIFY_CLIENT_ID=<the app's Client ID>
+OAUTH_SPOTIFY_CLIENT_SECRET=<the client secret>
+```
+
+Both or neither: only one of the two set stops the API at boot.
+
+Limitations:
+- **Deployed site only.** If the variables are set locally anyway, Connect sends the browser to Spotify, which shows its own "INVALID_CLIENT: Invalid redirect URI" page; the user never comes back to the dashboard.
+- **Production domain only.** Preview deployments have changing URLs that cannot be registered as redirect URI, so they cannot connect.
+- **Spotify Development Mode:**
+  - the app owner's Spotify account needs an active Premium subscription, otherwise the app stops working;
+  - at most 5 users, each added by e-mail under User Management before they can connect. Add the jury's accounts before a demo;
+  - an account that is not on the list gets a 403 from the API, which the card shows as "needs to be reconnected".
+- **No revocation.** Spotify has no revocation endpoint: unsubscribing deletes the stored tokens only. To withdraw access at Spotify, remove the app at https://www.spotify.com/account/apps/.
+- **Tracks only.** The endpoint returns no podcast episodes, and at most the last 50 plays.

@@ -15,6 +15,7 @@ import { nasaService } from './nasa'
 import { epicGamesService } from './epic-games'
 import { githubService } from './github'
 import { pokemonTcgService } from './pokemon-tcg'
+import { spotifyService } from './spotify'
 
 /** Registered in every environment. Real, production-ready services go here. */
 export const services: ServiceDef[] = [radioBrowserService, letterboxdService, adviceService, randomFoxService, factsService, nasaService, githubService, epicGamesService, pokemonTcgService]

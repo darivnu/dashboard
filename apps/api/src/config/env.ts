@@ -126,6 +126,7 @@ export const env = {
     smtp: smtpConfig(),
     oauth: {
         github: oauthProvider('GITHUB'),
+        spotify: oauthProvider('SPOTIFY'),
     },
 } as const
 
