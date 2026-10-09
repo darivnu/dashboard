@@ -3,6 +3,8 @@ import type { Instance, InstanceParams } from './dashboard/types'
 import AdviceWidget from './widgets/AdviceWidget'
 import FreeGames from './widgets/epic-games/free-games/FreeGames'
 import { parseFreeGames } from './widgets/epic-games/free-games/parse'
+import FactWidget from './widgets/facts/fact-of-the-day/FactWidget'
+import { parseFact } from './widgets/facts/fact-of-the-day/parse'
 import ContributionsWidget from './widgets/github/contributions/ContributionsWidget'
 import { parseContributions } from './widgets/github/contributions/parse'
 import NotificationsWidget from './widgets/github/notifications/NotificationsWidget'
@@ -102,6 +104,13 @@ const fox = defineWidget({
     minSize: { w: 2, h: 2 },
 })
 
+const factOfTheDay = defineWidget({
+    component: FactWidget,
+    parse: parseFact,
+    defaultSize: { w: 4, h: 3 },
+    minSize: { w: 2, h: 2 },
+})
+
 const apod = defineWidget({
     component: ApodWidget,
     parse: parseApod,
@@ -169,6 +178,7 @@ const entries: Record<string, WidgetEntry> = {
         minSize: { w: 3, h: 3 },
     },
     'random_fox/random_fox': fox,
+    'facts/fact_of_the_day': factOfTheDay,
     'nasa/apod': apod,
     'nasa/neows': neo,
     'github/notifications': githubNotifications,
