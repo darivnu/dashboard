@@ -3,22 +3,25 @@ import type { FactData } from './parse'
 
 export default function FactWidget({ data }: WidgetViewProps<FactData>) {
     return (
-        <div className="flex h-full flex-col justify-between gap-2">
-            <p className="text-fg text-base">{data.text}</p>
+        <div className="flex h-full flex-col items-center justify-center gap-3 px-2 text-center">
+            <span aria-hidden="true" className="text-2xl">
+                💡
+            </span>
+            <p className="text-balance text-fg text-base leading-relaxed">
+                {data.text}
+            </p>
             {data.source &&
                 (data.sourceUrl ? (
                     <a
                         href={data.sourceUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="self-end text-link text-xs hover:underline"
+                        className="text-muted text-xs hover:text-link hover:underline"
                     >
-                        Source: {data.source}
+                        — {data.source}
                     </a>
                 ) : (
-                    <p className="self-end text-muted text-xs">
-                        Source: {data.source}
-                    </p>
+                    <p className="text-muted text-xs">— {data.source}</p>
                 ))}
         </div>
     )
