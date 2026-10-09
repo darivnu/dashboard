@@ -12,6 +12,7 @@ import LetterboxdWidget from './widgets/LetterboxdWidget'
 import EchoWidget from './widgets/mock/echo/EchoWidget'
 import BoosterOpener from './widgets/pokemon-tcg/booster-opener/BoosterOpener'
 import StationMap from './widgets/radio-browser/station-map/StationMap'
+import RecentlyPlayed from './widgets/spotify/recently-played/RecentlyPlayed'
 
 describe('defineWidget', () => {
     type Greeting = { text: string }
@@ -131,6 +132,16 @@ describe('getWidgetEntry', () => {
         expect(() => entry.parse({ sets: 'many' })).toThrow()
     })
 
+    test('the spotify recently played widget is registered 4 x 5, at least 3 x 3', () => {
+        const entry = getWidgetEntry('spotify', 'recently_played')
+        if ('legacy' in entry) throw new Error('expected a widget-base entry')
+        expect(entry.component).toBe(RecentlyPlayed)
+        expect(entry.defaultSize).toEqual({ w: 4, h: 5 })
+        expect(entry.minSize).toEqual({ w: 3, h: 3 })
+        expect(entry.parse({ tracks: [] })).toEqual({ tracks: [] })
+        expect(() => entry.parse({ tracks: 'many' })).toThrow()
+    })
+
     test('every entry has a default size no smaller than its minimum', () => {
         for (const [service, widget] of [
             ['advice_slip', 'random_advice'],
@@ -141,6 +152,7 @@ describe('getWidgetEntry', () => {
             ['nasa', 'apod'],
             ['epic_games', 'free_games'],
             ['pokemon_tcg', 'booster_opener'],
+            ['spotify', 'recently_played'],
             ['nope', 'nothing'],
         ]) {
             const { defaultSize, minSize } = getWidgetEntry(service, widget)

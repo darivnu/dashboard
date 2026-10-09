@@ -5,7 +5,7 @@
 ** providers
 */
 
-import { GitHub } from 'arctic'
+import { GitHub, Spotify } from 'arctic'
 import { env, type OAuthClientConfig } from '../../config/env'
 import type { OAuthCredentials } from '../types'
 import type { OAuthProviderId } from './ids'
@@ -108,8 +108,42 @@ export function createGitHubProvider(config: OAuthClientConfig): OAuthProvider {
     }
 }
 
+//Spotify follows the OAuth standard: scopes separated by spaces ("user-read-recently-played user-top-read")
+function splitSpaceScope(raw: string): string[] {
+    return raw.split(' ').filter((scope) => scope.length > 0)
+}
+
+//exported for the tests only; everything else goes through getProvider()
+export function createSpotifyProvider(config: OAuthClientConfig): OAuthProvider {
+    const client = new Spotify(config.clientId, config.clientSecret, callbackUrl('spotify'))
+
+    return {
+        id: 'spotify',
+        //arctic's Spotify client takes a code verifier: the routes generate it and hand it back at the callback
+        pkce: true,
+
+        authorizationUrl(state, codeVerifier, scopes) {
+            return client.createAuthorizationURL(state, codeVerifier, scopes)
+        },
+
+        async exchangeCode(code, codeVerifier) {
+            const tokens = await client.validateAuthorizationCode(code, codeVerifier)
+            return toCredentials(tokens.data, new Date(), splitSpaceScope)
+        },
+
+        //Spotify tokens last one hour. The answer usually has no new refresh token: the token manager keeps the old one
+        async refresh(refreshToken) {
+            const tokens = await client.refreshAccessToken(refreshToken)
+            return toCredentials(tokens.data, new Date(), splitSpaceScope)
+        },
+
+        //no revoke: Spotify has no revocation endpoint. The user removes the app at https://www.spotify.com/account/apps/
+    }
+}
+
 const factories: Record<OAuthProviderId, () => OAuthProvider | null> = {
     github: () => (env.oauth.github ? createGitHubProvider(env.oauth.github) : null),
+    spotify: () => (env.oauth.spotify ? createSpotifyProvider(env.oauth.spotify) : null),
 }
 
 const instances = new Map<OAuthProviderId, OAuthProvider | null>()
@@ -222,6 +256,8 @@ export function createGitHubLoginProvider(config: OAuthClientConfig): LoginProvi
 
 const loginFactories: Record<OAuthProviderId, () => LoginProvider | null> = {
     github: () => (env.oauth.github ? createGitHubLoginProvider(env.oauth.github) : null),
+    //Spotify only connects a service, nobody logs in with it
+    spotify: () => null,
 }
 
 const loginInstances = new Map<OAuthProviderId, LoginProvider | null>()

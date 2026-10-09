@@ -20,6 +20,8 @@ import { parseStationMap } from './widgets/radio-browser/station-map/parse'
 import StationMap from './widgets/radio-browser/station-map/StationMap'
 import FoxWidget from './widgets/random_fox/random_fox/FoxWidget'
 import { parseFox } from './widgets/random_fox/random_fox/parse'
+import { parseRecentlyPlayed } from './widgets/spotify/recently-played/parse'
+import RecentlyPlayed from './widgets/spotify/recently-played/RecentlyPlayed'
 
 export type Size = { w: number; h: number }
 
@@ -144,6 +146,13 @@ const boosterOpener = defineWidget({
     minSize: { w: 4, h: 5 },
 })
 
+const spotifyRecentlyPlayed = defineWidget({
+    component: RecentlyPlayed,
+    parse: parseRecentlyPlayed,
+    defaultSize: { w: 4, h: 5 },
+    minSize: { w: 3, h: 3 },
+})
+
 // El mapa: cada clave es "serviceId/widgetId"
 const entries: Record<string, WidgetEntry> = {
     'radio_browser/station_map': stationMap,
@@ -166,6 +175,7 @@ const entries: Record<string, WidgetEntry> = {
     'github/contribution_stat_card': githubContributions,
     'epic_games/free_games': freeGames,
     'pokemon_tcg/booster_opener': boosterOpener,
+    'spotify/recently_played': spotifyRecentlyPlayed,
 }
 
 export function getWidgetEntry(

@@ -21,6 +21,7 @@ export const fakeEnv = {
     smtp: null,
     oauth: {
         github: null,
+        spotify: null,
     },
 } as const
 
