@@ -20,3 +20,16 @@ if (!HTMLDialogElement.prototype.close) {
         this.dispatchEvent(new Event('close'))
     }
 }
+
+// jsdom has no matchMedia. By default no query matches, so the dashboard
+// renders its narrow-screen layout; a test that needs the wide one stubs
+// matchMedia itself.
+if (!window.matchMedia) {
+    window.matchMedia = (query: string) =>
+        ({
+            matches: false,
+            media: query,
+            addEventListener() {},
+            removeEventListener() {},
+        }) as unknown as MediaQueryList
+}

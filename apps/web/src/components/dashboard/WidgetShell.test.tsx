@@ -109,19 +109,45 @@ describe('header', () => {
         ).toBeVisible()
     })
 
-    test('Edit, the arrows and Delete call their handlers', async () => {
+    test('Edit, the move buttons and Delete call their handlers', async () => {
         const { user, onEdit, onDelete, onMove } = setup()
 
         await user.click(screen.getByRole('button', { name: 'Edit' }))
         expect(onEdit).toHaveBeenCalledTimes(1)
 
-        await user.click(screen.getByRole('button', { name: 'Move left' }))
-        expect(onMove).toHaveBeenLastCalledWith('left')
-        await user.click(screen.getByRole('button', { name: 'Move right' }))
-        expect(onMove).toHaveBeenLastCalledWith('right')
+        await user.click(screen.getByRole('button', { name: 'Move earlier' }))
+        expect(onMove).toHaveBeenLastCalledWith('earlier')
+        await user.click(screen.getByRole('button', { name: 'Move later' }))
+        expect(onMove).toHaveBeenLastCalledWith('later')
 
         await user.click(screen.getByRole('button', { name: 'Delete' }))
         expect(onDelete).toHaveBeenCalledTimes(1)
+    })
+
+    test('the header is the handle the grid drags the card by', () => {
+        setup()
+        const header = screen.getByRole('heading', {
+            name: 'My echo',
+        }).parentElement
+        expect(header?.tagName).toBe('HEADER')
+        expect(header).toHaveClass('widget-drag-handle', 'md:cursor-grab')
+    })
+
+    test('on wide screens the move buttons only show when focused', () => {
+        setup()
+        for (const name of ['Move earlier', 'Move later']) {
+            expect(screen.getByRole('button', { name })).toHaveClass(
+                'md:sr-only',
+                'md:focus-visible:not-sr-only',
+            )
+        }
+    })
+
+    test('the old left and right arrows are gone', () => {
+        setup()
+        expect(
+            screen.queryByRole('button', { name: /Move (left|right)/ }),
+        ).not.toBeInTheDocument()
     })
 
     test('API key shows for a service that uses one and calls its handler', async () => {

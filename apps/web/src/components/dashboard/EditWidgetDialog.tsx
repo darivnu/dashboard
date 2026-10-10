@@ -3,7 +3,7 @@ import Dialog from '../ui/Dialog'
 import { getWidgetEntry } from '../widgetRegistry'
 import CatalogLoader from './CatalogLoader'
 import InstanceForm, { type InstanceFormValues } from './InstanceForm'
-import { layoutChanges, pack, sortByPosition } from './layout'
+import { compact, layoutChanges } from './layout'
 import { useSaveLayout, useUpdateInstance } from './queries'
 import type { CatalogService, Instance } from './types'
 
@@ -72,13 +72,14 @@ function EditWidgetContent({
     async function handleSubmit(values: InstanceFormValues) {
         await update.mutateAsync({ id: instance.id, body: values })
 
-        // A new size can push the cards after this one to other places.
+        // A card that grew pushes the cards under it down; one that shrank
+        // lets them float up. The rest of the dashboard stays put.
         const resized = instances.map((other) =>
             other.id === instance.id
                 ? { ...other, w: values.w, h: values.h }
                 : other,
         )
-        const changes = layoutChanges(resized, pack(sortByPosition(resized)))
+        const changes = layoutChanges(resized, compact(resized))
         if (changes.length > 0) await saveLayout.mutateAsync(changes)
 
         onClose()

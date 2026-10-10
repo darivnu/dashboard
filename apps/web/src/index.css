@@ -88,6 +88,37 @@ body {
 }
 
 /*
+ * react-grid-layout, which drags and resizes the dashboard cards, ships a
+ * stylesheet with fixed colours (imported in main.tsx, before this file). These
+ * rules replace the two parts that are visible: the red drop placeholder and
+ * the small, dark resize chevron that only shows on hover.
+ */
+.react-grid-item.react-grid-placeholder {
+    background: var(--color-primary);
+    border-radius: var(--radius-xl);
+}
+
+.react-grid-item > .react-resizable-handle {
+    width: 28px;
+    height: 28px;
+    opacity: 1;
+}
+
+.react-grid-item > .react-resizable-handle::after {
+    right: 5px;
+    bottom: 5px;
+    width: 12px;
+    height: 12px;
+    border-color: var(--color-muted);
+    /* An arc that follows the rounded corner of the card, 5 px inside it. */
+    border-bottom-right-radius: calc(var(--radius-xl) - 5px);
+}
+
+.react-grid-item.react-draggable-dragging .widget-drag-handle {
+    cursor: grabbing;
+}
+
+/*
  * Text size steps. Set as a percentage of the root font size (never px), so the
  * choice multiplies the browser's own font-size setting instead of overriding
  * it. "default" is the browser default, so it needs no rule. Tailwind spacing is

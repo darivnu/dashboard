@@ -1,7 +1,8 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router'
-import { beforeEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { useDisconnectService } from '../components/dashboard/queries'
 import { apiMock, fail, makeInstance, ok, resetApiMock } from '../test/apiMock'
 import { renderHookWithQuery, renderWithQuery } from '../test/renderWithQuery'
@@ -12,6 +13,30 @@ vi.mock('../auth', () => ({
     useAuth: () => ({
         user: { id: 'u1', email: 'me@example.com', role: 'user' },
         logout: vi.fn(),
+    }),
+}))
+
+type GridItem = { i: string; x: number; y: number; w: number; h: number }
+type GridProps = {
+    children: ReactNode
+    layout: GridItem[]
+    onDragStop: (layout: GridItem[]) => void
+    onResizeStop: (layout: GridItem[]) => void
+}
+
+// The stand-in for the grid library used on wide screens (see
+// WidgetGrid.test.tsx): it draws the cards and keeps the props it was given.
+const grid = vi.hoisted(() => ({ props: null as GridProps | null }))
+
+vi.mock('react-grid-layout', () => ({
+    default: (props: GridProps) => {
+        grid.props = props
+        return <div>{props.children}</div>
+    },
+    useContainerWidth: () => ({
+        width: 1200,
+        mounted: true,
+        containerRef: { current: null },
     }),
 }))
 
@@ -154,7 +179,7 @@ test('moving a card reorders it at once and saves the new positions', async () =
     renderDashboard()
     await screen.findByRole('article', { name: 'A' })
 
-    await userEvent.click(card('A').getByRole('button', { name: 'Move right' }))
+    await userEvent.click(card('A').getByRole('button', { name: 'Move later' }))
 
     await waitFor(() => expect(titles()).toEqual(['B', 'A', 'C']))
     expect(apiMock.saveLayout).toHaveBeenCalledWith([
@@ -163,12 +188,14 @@ test('moving a card reorders it at once and saves the new positions', async () =
     ])
 })
 
-test('moving the first card left does nothing', async () => {
+test('moving the first card earlier does nothing', async () => {
     apiMock.listInstances.mockResolvedValue(ok({ instances: threeWidgets() }))
     renderDashboard()
     await screen.findByRole('article', { name: 'A' })
 
-    await userEvent.click(card('A').getByRole('button', { name: 'Move left' }))
+    await userEvent.click(
+        card('A').getByRole('button', { name: 'Move earlier' }),
+    )
     expect(apiMock.saveLayout).not.toHaveBeenCalled()
     expect(titles()).toEqual(['A', 'B', 'C'])
 })
@@ -179,7 +206,7 @@ test('a refused move puts the cards back and says so', async () => {
     renderDashboard()
     await screen.findByRole('article', { name: 'A' })
 
-    await userEvent.click(card('A').getByRole('button', { name: 'Move right' }))
+    await userEvent.click(card('A').getByRole('button', { name: 'Move later' }))
 
     expect(
         await screen.findByText(/The new layout couldn't be saved/),
@@ -203,11 +230,10 @@ test('deleting asks first; Cancel keeps the widget', async () => {
     expect(apiMock.deleteInstance).not.toHaveBeenCalled()
 })
 
-test('confirming deletes the widget and closes the gap it leaves', async () => {
+test('confirming deletes the widget; cards beside it stay where they are', async () => {
     const [a, b, c] = threeWidgets()
     apiMock.listInstances.mockResolvedValue(ok({ instances: [a, b, c] }))
     apiMock.deleteInstance.mockResolvedValue(ok({ ok: true }))
-    apiMock.saveLayout.mockResolvedValue(ok({ instances: [a, { ...c, x: 4 }] }))
     renderDashboard()
     await screen.findByRole('article', { name: 'B' })
 
@@ -221,11 +247,140 @@ test('confirming deletes the widget and closes the gap it leaves', async () => {
     await waitFor(() => expect(titles()).toEqual(['A', 'C']))
     expect(apiMock.instanceById).toHaveBeenCalledWith({ id: b.id })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(apiMock.saveLayout).not.toHaveBeenCalled()
+})
+
+test('deleting a widget lifts the cards under it, and only those', async () => {
+    const [a, b, c] = threeWidgets()
+    const under = makeInstance({ title: 'Under B', x: 4, y: 3 })
+    apiMock.listInstances.mockResolvedValue(ok({ instances: [a, b, c, under] }))
+    apiMock.deleteInstance.mockResolvedValue(ok({ ok: true }))
+    apiMock.saveLayout.mockResolvedValue(
+        ok({ instances: [a, c, { ...under, y: 0 }] }),
+    )
+    renderDashboard()
+    await screen.findByRole('article', { name: 'B' })
+
+    await userEvent.click(card('B').getByRole('button', { name: 'Delete' }))
+    await userEvent.click(
+        within(screen.getByRole('dialog')).getByRole('button', {
+            name: 'Delete',
+        }),
+    )
+
     await waitFor(() =>
         expect(apiMock.saveLayout).toHaveBeenCalledWith([
-            { id: c.id, x: 4, y: 0, w: 4, h: 3 },
+            { id: under.id, x: 4, y: 0, w: 4, h: 3 },
         ]),
     )
+    expect(apiMock.saveLayout).toHaveBeenCalledTimes(1)
+})
+
+describe('on a wide screen', () => {
+    beforeEach(() => {
+        vi.stubGlobal(
+            'matchMedia',
+            vi.fn(() => ({
+                matches: true,
+                addEventListener: vi.fn(),
+                removeEventListener: vi.fn(),
+            })),
+        )
+    })
+    afterEach(() => vi.unstubAllGlobals())
+
+    function swapped([a, b, c]: ReturnType<typeof threeWidgets>) {
+        return [
+            { i: a.id, x: 4, y: 0, w: 4, h: 3 },
+            { i: b.id, x: 0, y: 0, w: 4, h: 3 },
+            { i: c.id, x: 8, y: 0, w: 4, h: 3 },
+        ]
+    }
+
+    test('loading the dashboard saves nothing', async () => {
+        apiMock.listInstances.mockResolvedValue(
+            ok({ instances: threeWidgets() }),
+        )
+        renderDashboard()
+        await screen.findByRole('article', { name: 'A' })
+        expect(apiMock.saveLayout).not.toHaveBeenCalled()
+    })
+
+    test('a drop sends one request with only the cards that moved', async () => {
+        const widgets = threeWidgets()
+        const [a, b, c] = widgets
+        apiMock.listInstances.mockResolvedValue(ok({ instances: widgets }))
+        apiMock.saveLayout.mockResolvedValue(
+            ok({ instances: [{ ...a, x: 4 }, { ...b, x: 0 }, c] }),
+        )
+        renderDashboard()
+        await screen.findByRole('article', { name: 'A' })
+
+        act(() => grid.props?.onDragStop(swapped(widgets)))
+
+        await waitFor(() =>
+            expect(grid.props?.layout.map(({ i, x }) => [i, x])).toEqual([
+                [a.id, 4],
+                [b.id, 0],
+                [c.id, 8],
+            ]),
+        )
+        expect(apiMock.saveLayout).toHaveBeenCalledTimes(1)
+        expect(apiMock.saveLayout).toHaveBeenCalledWith([
+            { id: a.id, x: 4, y: 0, w: 4, h: 3 },
+            { id: b.id, x: 0, y: 0, w: 4, h: 3 },
+        ])
+    })
+
+    test('a resize sends one request with the new size', async () => {
+        const widgets = threeWidgets()
+        const [a, b, c] = widgets
+        apiMock.listInstances.mockResolvedValue(ok({ instances: widgets }))
+        apiMock.saveLayout.mockResolvedValue(
+            ok({ instances: [{ ...a, h: 5 }, b, c] }),
+        )
+        renderDashboard()
+        await screen.findByRole('article', { name: 'A' })
+
+        act(() =>
+            grid.props?.onResizeStop([
+                { i: a.id, x: 0, y: 0, w: 4, h: 5 },
+                { i: b.id, x: 4, y: 0, w: 4, h: 3 },
+                { i: c.id, x: 8, y: 0, w: 4, h: 3 },
+            ]),
+        )
+
+        await waitFor(() =>
+            expect(apiMock.saveLayout).toHaveBeenCalledWith([
+                { id: a.id, x: 0, y: 0, w: 4, h: 5 },
+            ]),
+        )
+        expect(apiMock.saveLayout).toHaveBeenCalledTimes(1)
+    })
+
+    test('a refused drop puts the cards back and says so', async () => {
+        const widgets = threeWidgets()
+        const [a, b, c] = widgets
+        apiMock.listInstances.mockResolvedValue(ok({ instances: widgets }))
+        apiMock.saveLayout.mockResolvedValue(
+            fail(400, 'VALIDATION', 'Bad layout'),
+        )
+        renderDashboard()
+        await screen.findByRole('article', { name: 'A' })
+
+        act(() => grid.props?.onDragStop(swapped(widgets)))
+
+        expect(
+            await screen.findByText(/The new layout couldn't be saved/),
+        ).toBeVisible()
+        // The stand-in keeps no positions of its own, so this shows that the
+        // grid is handed the old layout again, not that the real one obeys.
+        expect(grid.props?.layout.map(({ i, x }) => [i, x])).toEqual([
+            [a.id, 0],
+            [b.id, 4],
+            [c.id, 8],
+        ])
+    })
 })
 
 test('a failed delete keeps the dialog open with the reason', async () => {
@@ -262,7 +417,7 @@ test('Add Widget opens the add dialog, and a created widget appears', async () =
     const [a] = threeWidgets()
     apiMock.listInstances.mockResolvedValue(ok({ instances: [a] }))
     apiMock.createInstance.mockResolvedValue(
-        ok(makeInstance({ title: 'New one', x: 4, y: 0 })),
+        ok(makeInstance({ title: 'New one', x: 0, y: 3 })),
     )
     renderDashboard()
     await screen.findByRole('article', { name: 'A' })
@@ -279,7 +434,7 @@ test('Add Widget opens the add dialog, and a created widget appears', async () =
         await screen.findByRole('article', { name: 'New one' }),
     ).toBeVisible()
     expect(apiMock.createInstance).toHaveBeenCalledWith(
-        expect.objectContaining({ x: 4, y: 0, w: 4, h: 3 }),
+        expect.objectContaining({ x: 0, y: 3, w: 4, h: 3 }),
     )
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })

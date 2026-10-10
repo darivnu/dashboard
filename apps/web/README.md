@@ -13,6 +13,7 @@ React single-page application that lets authenticated users build a personal das
 | Eden Treaty | Type-safe HTTP client — imports the backend's `App` type for end-to-end type safety |
 | TanStack Query | Server state: fetching, caching, mutations and the per-widget refresh interval |
 | React Router | Client-side routing |
+| react-grid-layout | Drag, resize and collision handling of the dashboard cards (behaviour only, no components) |
 | MapLibre GL | Globe of the Radio Browser station map widget |
 | Vitest + Testing Library | Unit and component tests, run in jsdom |
 | Biome | Linter, formatter and import sorting |
@@ -25,13 +26,13 @@ src/
 ├── auth.tsx                # AuthProvider context (login, logout that empties the query cache, session persistence)
 ├── App.tsx                 # Root component — AuthProvider + router; AppRoutes holds the route table
 ├── main.tsx                # Entry point — QueryClientProvider + App + global CSS
-├── index.css               # Tailwind v4 import (@import "tailwindcss")
+├── index.css               # Tailwind v4 import (@import "tailwindcss"), theme tokens, grid library overrides
 ├── components/
 │   ├── ProtectedRoute.tsx  # Private pages: redirects to /login when no session exists
 │   ├── GuestRoute.tsx      # Login and register: redirects to /dashboard when a session exists
 │   ├── layout/
 │   │   └── AppShell.tsx        # Top bar (app name, page action, account menu) + <main>
-│   ├── WidgetGrid.tsx      # 12-column grid, one WidgetShell per instance
+│   ├── WidgetGrid.tsx      # 12-column drag-and-resize grid (single column on phones), one WidgetShell per instance
 │   ├── widgetRegistry.tsx  # Maps "serviceId/widgetId" to a component, a parser and sizes
 │   ├── dashboard/          # The widget base
 │   │   ├── types.ts            # Instance, catalog and body types, derived from the Eden client
@@ -46,7 +47,8 @@ src/
 │   │   ├── CatalogLoader.tsx   # Loading / error wrapper around the catalog query
 │   │   ├── ApiKeyDialog.tsx    # Sets or replaces the API key of one service
 │   │   ├── ConnectButton.tsx   # Starts the OAuth connection of one service
-│   │   └── layout.ts           # Grid maths: sort, pack, move, next free slot
+│   │   ├── useMediaQuery.ts    # Whether a CSS media query matches, kept up to date
+│   │   └── layout.ts           # Grid maths: sort, compact, pack, move, next free slot
 │   ├── ui/                 # Alert, Button, Dialog, Field, Input, Menu, Spinner
 │   └── widgets/            # One folder per service, one subfolder per widget
 │       ├── AdviceWidget.tsx            # legacy widget (fetches for itself)
@@ -178,7 +180,31 @@ The address is kept while the session loads, so the return of an OAuth connectio
 
 ### Grid
 
-`WidgetGrid` is a 12-column CSS grid with 96 px rows and 16 px gaps; it collapses to a single column on narrow screens. Each instance stores its own `x`, `y`, `w` and `h`. Moving a widget left or right re-packs the grid (`layout.ts`) and saves only the instances whose position changed through `PATCH /api/dashboard/layout`.
+`WidgetGrid` is a 12-column grid with 96 px rows and 16 px gaps. Each instance stores its own `x`, `y`, `w` and `h`, and from the `md` breakpoint (768 px) up these are real positions: a card sits in the column where it was left, and cards float up so there are never vertical holes.
+
+From 768 px up the grid is drawn by [`react-grid-layout`](https://github.com/react-grid-layout/react-grid-layout) (pinned to `2.2.4`). It only handles the behaviour (dragging, resizing, collisions, the drop placeholder and the resize handle); every card, button and dialog is still our own code.
+
+- **Move:** drag a card by its header. Buttons, links and form fields in the header never start a drag, and nothing inside the widget body does either.
+- **Resize:** drag the bottom-right corner. The size snaps to whole cells, never goes below the widget's `minSize` (from `widgetRegistry.tsx`), and never above 12 columns or 12 rows (`GRID_COLUMNS`, `MAX_ROWS` in `layout.ts`).
+- **Save:** one `PATCH /api/dashboard/layout` when the pointer is released, holding only the cards whose position or size differs from what is stored. Nothing is sent on page load, on a window resize, or for a drop that changes nothing. The save is optimistic: if the API refuses it, the cards go back and an alert says so.
+
+Below 768 px there is no library: the cards are a single column ordered by `y`, then `x`, with no drag and no resize.
+
+Every card also has two buttons, **Move earlier** and **Move later**. They are visible below 768 px, where they are the only way to reorder. From 768 px up they are hidden until a keyboard user tabs to them. A press swaps the card with its neighbour in reading order and re-flows the whole dashboard left to right (`move` and `pack` in `layout.ts`), so a layout arranged by hand is replaced by a gap-free flow. Keyboard users resize with the Width and Height fields of the Edit dialog.
+
+`layout.ts` holds the maths, with no React in it:
+
+| Function | What it does | Used by |
+|---|---|---|
+| `compact(items)` | closes vertical holes and resolves overlaps downward, with the same compactor the grid uses; a card keeps its column | delete, the Edit dialog, `nextSlot` |
+| `nextSlot(items, size)` | where a new card goes: bottom left, floating up if there is room | the Add dialog |
+| `move(items, id, 'earlier' \| 'later')` | swaps a card with its neighbour in reading order | the move buttons |
+| `pack(items)` | re-flows every card left to right, top to bottom | `move` only |
+| `layoutChanges(before, after)` | the cards whose `x`, `y`, `w` or `h` changed | every save |
+
+The library's stylesheet is imported once in `main.tsx`, before `index.css`, which overrides the drop placeholder (project blue instead of red) and the resize chevron (light, always visible).
+
+Known limits: drag and resize on the card need a pointer (mouse or touch); crossing the 768 px breakpoint (rotating a tablet, resizing the window) swaps one layout for the other and mounts every widget again, so state kept inside a widget, such as a playing radio station, is lost; a dashboard saved before this change can hold a card with a hole above it, which the grid shows floated up and stores the next time something is dropped, while the move buttons keep working from the stored order until then; the layout is the same at every width from 768 px up, so there is one layout per dashboard, not one per screen size; the API does not validate layouts, so the minimum size, the 12 columns and the no-overlap rule are frontend rules.
 
 ### Widget instances
 
@@ -203,11 +229,13 @@ An instance is one configured widget on the user's dashboard. Its type comes fro
 
 `AddWidgetDialog` lists the services and widgets from `GET /api/catalog`. The form is generated from the params the catalog declares for the chosen widget, and validated on the client with the same rules as the backend (required, integer, `min` / `max`). `EditWidgetDialog` reuses the same form.
 
+A new widget is placed at the bottom left of the dashboard and floats up if the columns above it are free. Changing the width or height in the Edit dialog only pushes down the cards under the one that grew (or lets them float up when it shrank); the rest of the dashboard stays where it is. Deleting a widget lifts the cards under it and moves nothing else.
+
 ### Widget shell
 
 Every widget is drawn inside `WidgetShell`, which owns everything that is not specific to one widget:
 
-- title bar with refresh, move, edit and delete actions, and the time of the last fetch
+- title bar with refresh, edit, move earlier / later and delete actions, and the time of the last fetch; from 768 px up the bar is also the handle the card is dragged by
 - data fetching and polling every `refreshSeconds` (`useWidgetData`)
 - a spinner on first load, and a small indicator while refreshing
 - one message per error code the API can answer with (`rate_limited`, `upstream_error`, `invalid_config`, `needs_reauth`), plus a network error
@@ -250,7 +278,7 @@ cd apps/web
 bun run test       # vitest run
 ```
 
-Tests run in jsdom with Testing Library. `src/test/apiMock.ts` is a stand-in for the Eden client and `src/test/renderWithQuery.tsx` renders a component inside a fresh `QueryClient`. `AuthProvider` needs that query client around it. `App.test.tsx` renders the exported `AppRoutes` inside a `MemoryRouter` to test the redirects.
+Tests run in jsdom with Testing Library. `src/test/apiMock.ts` is a stand-in for the Eden client and `src/test/renderWithQuery.tsx` renders a component inside a fresh `QueryClient`. `AuthProvider` needs that query client around it. jsdom lays nothing out and has no `matchMedia`, so `src/test/setup.ts` adds a `matchMedia` in which no query matches (tests get the single-column dashboard unless they stub it), and the tests of the wide dashboard replace `react-grid-layout` with a stand-in that renders its children and exposes its props; real dragging is not simulated. `App.test.tsx` renders the exported `AppRoutes` inside a `MemoryRouter` to test the redirects.
 
 ## Lint and format
 

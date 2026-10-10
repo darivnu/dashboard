@@ -380,7 +380,7 @@ test('a layout save that answers after the logout does not hand the widgets to t
     const cardA = await screen.findByRole('article', { name: 'A' })
 
     await userEvent.click(
-        within(cardA).getByRole('button', { name: 'Move right' }),
+        within(cardA).getByRole('button', { name: 'Move later' }),
     )
     await userEvent.click(screen.getByRole('button', { name: 'Account menu' }))
     await userEvent.click(screen.getByRole('menuitem', { name: 'Log out' }))

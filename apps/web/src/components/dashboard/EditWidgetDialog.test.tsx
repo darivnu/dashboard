@@ -140,8 +140,8 @@ test('saves the changed values and closes; an unchanged size moves nothing', asy
     expect(apiMock.saveLayout).not.toHaveBeenCalled()
 })
 
-test('a new size is saved and the cards after it are moved to make room', async () => {
-    const { first, second, third, all } = makeDashboard()
+test('a wider card pushes down the card it now covers, and no other', async () => {
+    const { first, second, all } = makeDashboard()
     apiMock.updateInstance.mockResolvedValue(ok({ ...first, w: 6 }))
     apiMock.saveLayout.mockResolvedValue(ok({ instances: all }))
     const { user, onClose } = setup(first, all)
@@ -156,10 +156,30 @@ test('a new size is saved and the cards after it are moved to make room', async 
     expect(apiMock.updateInstance).toHaveBeenCalledWith(
         expect.objectContaining({ w: 6, h: 3 }),
     )
-    // 6 + 4 fit in the first row; the third card drops to the next one
+    // columns 0-5 now belong to the first card; the second one started at
+    // column 4, so it goes under it. The third, at column 8, is not touched.
     expect(apiMock.saveLayout).toHaveBeenCalledWith([
-        { id: second.id, x: 6, y: 0, w: 4, h: 3 },
-        { id: third.id, x: 0, y: 3, w: 4, h: 3 },
+        { id: second.id, x: 4, y: 3, w: 4, h: 3 },
+    ])
+})
+
+test('a taller card pushes down only the cards under it', async () => {
+    const { first, second, third } = makeDashboard()
+    const under = makeInstance({ x: 0, y: 3 })
+    const all = [first, second, third, under]
+    apiMock.updateInstance.mockResolvedValue(ok({ ...first, h: 5 }))
+    apiMock.saveLayout.mockResolvedValue(ok({ instances: all }))
+    const { user, onClose } = setup(first, all)
+
+    await user.clear(
+        await screen.findByRole('spinbutton', { name: 'Height (rows)' }),
+    )
+    await user.type(field.height(), '5')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(apiMock.saveLayout).toHaveBeenCalledWith([
+        { id: under.id, x: 0, y: 5, w: 4, h: 3 },
     ])
 })
 

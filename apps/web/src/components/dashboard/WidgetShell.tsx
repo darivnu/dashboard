@@ -17,7 +17,7 @@ type Props = {
     instance: Instance
     onEdit: () => void
     onDelete: () => void
-    onMove: (direction: 'left' | 'right') => void
+    onMove: (direction: 'earlier' | 'later') => void
     onSetApiKey: () => void
 }
 
@@ -196,6 +196,8 @@ function DataShell({
     )
 }
 
+const moveButton = 'md:sr-only md:focus-visible:not-sr-only'
+
 type FrameProps = Props & {
     status?: ReactNode
     onRefresh?: () => void
@@ -222,7 +224,8 @@ function Frame({
             aria-label={title}
             className="bg-surface rounded-xl p-4 flex flex-col gap-2 h-full min-h-0"
         >
-            <header className="flex flex-wrap justify-between items-center gap-2">
+            {/* From md up the grid drags the card by this header. */}
+            <header className="widget-drag-handle md:cursor-grab flex flex-wrap justify-between items-center gap-2">
                 <h3 className="text-fg font-semibold truncate">{title}</h3>
                 <div className="flex items-center gap-2">
                     {status}
@@ -248,19 +251,24 @@ function Frame({
                     <Button variant="ghost" onClick={onEdit}>
                         Edit
                     </Button>
+                    {/* The only way to reorder on a phone. From md up the
+                        card is dragged instead, so these stay hidden until
+                        a keyboard user tabs to them. */}
                     <Button
                         variant="ghost"
-                        aria-label="Move left"
-                        onClick={() => onMove('left')}
+                        aria-label="Move earlier"
+                        className={moveButton}
+                        onClick={() => onMove('earlier')}
                     >
-                        ←
+                        ↑
                     </Button>
                     <Button
                         variant="ghost"
-                        aria-label="Move right"
-                        onClick={() => onMove('right')}
+                        aria-label="Move later"
+                        className={moveButton}
+                        onClick={() => onMove('later')}
                     >
-                        →
+                        ↓
                     </Button>
                     <Button variant="dangerGhost" onClick={onDelete}>
                         Delete
