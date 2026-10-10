@@ -121,12 +121,12 @@ test('Back returns to the list', async () => {
     expect(screen.getByRole('button', { name: /Random advice/ })).toBeVisible()
 })
 
-test('creates the widget in the next free place and closes', async () => {
+test('creates the widget at the bottom left and closes', async () => {
     const existing = [
         makeInstance({ x: 0, y: 0 }),
         makeInstance({ x: 4, y: 0 }),
     ]
-    const created = makeInstance({ x: 8, y: 0, params: { message: 'hi' } })
+    const created = makeInstance({ x: 0, y: 3, params: { message: 'hi' } })
     apiMock.createInstance.mockResolvedValue(ok(created))
     const { user, onClose, client } = setup(existing)
     client.setQueryData(queryKeys.instances, existing)
@@ -142,8 +142,8 @@ test('creates the widget in the next free place and closes', async () => {
         title: null,
         params: { message: 'hi', count: 1 },
         refreshSeconds: 60,
-        x: 8,
-        y: 0,
+        x: 0,
+        y: 3,
         w: 4,
         h: 3,
     })

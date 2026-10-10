@@ -3,7 +3,7 @@ import Alert from '../ui/Alert'
 import Button from '../ui/Button'
 import Field from '../ui/Field'
 import Input from '../ui/Input'
-import { GRID_COLUMNS } from './layout'
+import { GRID_COLUMNS, MAX_ROWS } from './layout'
 import ParamForm from './ParamForm'
 import { errorMessage } from './queries'
 import type { CatalogParam, CatalogWidget, InstanceParams } from './types'
@@ -15,7 +15,6 @@ import {
 } from './validateParams'
 
 const MAX_REFRESH_SECONDS = 86_400
-const MAX_ROWS = 12
 
 export type InstanceFormValues = {
     title: string | null

@@ -3,12 +3,7 @@ import AddWidgetDialog from '../components/dashboard/AddWidgetDialog'
 import ApiKeyDialog from '../components/dashboard/ApiKeyDialog'
 import ConfirmDialog from '../components/dashboard/ConfirmDialog'
 import EditWidgetDialog from '../components/dashboard/EditWidgetDialog'
-import {
-    layoutChanges,
-    move,
-    pack,
-    sortByPosition,
-} from '../components/dashboard/layout'
+import { compact, layoutChanges, move } from '../components/dashboard/layout'
 import OAuthNotice from '../components/dashboard/OAuthNotice'
 import {
     errorMessage,
@@ -16,7 +11,7 @@ import {
     useInstances,
     useSaveLayout,
 } from '../components/dashboard/queries'
-import type { Instance } from '../components/dashboard/types'
+import type { Instance, LayoutItem } from '../components/dashboard/types'
 import AppShell from '../components/layout/AppShell'
 import Alert from '../components/ui/Alert'
 import Button from '../components/ui/Button'
@@ -44,9 +39,14 @@ export default function Dashboard() {
         ? (deleting.title ?? `${deleting.serviceId} / ${deleting.widgetId}`)
         : ''
 
-    const handleMove = (instance: Instance, direction: 'left' | 'right') => {
+    const handleMove = (instance: Instance, direction: 'earlier' | 'later') => {
         const changes = layoutChanges(list, move(list, instance.id, direction))
         if (changes.length > 0) saveLayout.mutate(changes)
+    }
+
+    // A drop or a resize on the grid: only the cards that changed arrive here.
+    const handleLayoutChange = (changes: LayoutItem[]) => {
+        saveLayout.mutate(changes)
     }
 
     const handleDelete = () => {
@@ -54,9 +54,9 @@ export default function Dashboard() {
         remove.mutate(deleting.id, {
             onSuccess: () => {
                 setDeletingId(null)
-                // Close the gap the deleted card leaves behind.
+                // The cards under the deleted one float up; nothing else moves.
                 const rest = list.filter((other) => other.id !== deleting.id)
-                const changes = layoutChanges(rest, pack(sortByPosition(rest)))
+                const changes = layoutChanges(rest, compact(rest))
                 if (changes.length > 0) saveLayout.mutate(changes)
             },
         })
@@ -105,6 +105,7 @@ export default function Dashboard() {
                     onEdit={(instance) => setEditingId(instance.id)}
                     onDelete={(instance) => setDeletingId(instance.id)}
                     onMove={handleMove}
+                    onLayoutChange={handleLayoutChange}
                     onSetApiKey={(instance) => setApiKeyId(instance.id)}
                 />
             )}
