@@ -27,6 +27,9 @@ src/
 ├── App.tsx                 # Root component — AuthProvider + router; AppRoutes holds the route table
 ├── main.tsx                # Entry point — QueryClientProvider + App + global CSS
 ├── index.css               # Tailwind v4 import (@import "tailwindcss"), theme tokens, grid library overrides
+├── preferences.ts          # Preferences kept in localStorage and mirrored as attributes on <html>
+├── theme.ts                # useTheme: light or dark
+├── textSize.ts             # useTextSize: small, default, large or extra large
 ├── components/
 │   ├── ProtectedRoute.tsx  # Private pages: redirects to /login when no session exists
 │   ├── GuestRoute.tsx      # Login and register: redirects to /dashboard when a session exists
@@ -47,20 +50,31 @@ src/
 │   │   ├── CatalogLoader.tsx   # Loading / error wrapper around the catalog query
 │   │   ├── ApiKeyDialog.tsx    # Sets or replaces the API key of one service
 │   │   ├── ConnectButton.tsx   # Starts the OAuth connection of one service
+│   │   ├── OAuthNotice.tsx     # Result of an OAuth connection, read from ?connected= / ?oauth_error=
 │   │   ├── useMediaQuery.ts    # Whether a CSS media query matches, kept up to date
 │   │   └── layout.ts           # Grid maths: sort, compact, pack, move, next free slot
-│   ├── ui/                 # Alert, Button, Dialog, Field, Input, Menu, Spinner
+│   ├── ui/                 # Alert, Button, Dialog, Field, Input, Menu, RadioGroup, Spinner
 │   └── widgets/            # One folder per service, one subfolder per widget
 │       ├── AdviceWidget.tsx            # legacy widget (fetches for itself)
+│       ├── LetterboxdWidget.tsx        # legacy widget (fetches for itself)
+│       ├── epic-games/free-games/
+│       ├── facts/fact-of-the-day/
+│       ├── github/contributions/
+│       ├── github/notifications/
 │       ├── mock/echo/
-│       └── radio-browser/station-map/
+│       ├── nasa/apod/
+│       ├── nasa/neows/
+│       ├── pokemon-tcg/booster-opener/
+│       ├── radio-browser/station-map/
+│       ├── random_fox/random_fox/
+│       └── spotify/recently-played/
 ├── pages/
 │   ├── Register.tsx        # Account creation form → "check your email" message, links to /login
 │   ├── Login.tsx           # Login form → useAuth().login() → redirects to /dashboard, links to /register
 │   ├── VerifyEmail.tsx     # Target of the link in the verification email
 │   ├── Dashboard.tsx       # AppShell + WidgetGrid + add / edit / delete dialogs
-│   ├── Profile.tsx         # Account info + the credentials of every service (keys, connections)
-│   └── Settings.tsx        # Placeholder inside AppShell
+│   ├── Profile.tsx         # Account info, delete account + the credentials of every service (keys, connections)
+│   └── Settings.tsx        # Text size and theme
 └── test/                   # Vitest setup, Eden client mock, renderWithQuery helper
 ```
 
@@ -127,7 +141,7 @@ There is no global nav. What a visitor sees depends on the session:
 - **Logged out** — only the auth pages, with no bar. They link to each other ("Sign up" / "Log in").
 - **Logged in** — every page is wrapped in `AppShell`, which draws one top bar: the app name (a link to `/dashboard`), the action of the current page, and the account menu.
 
-The account menu is a round avatar with the first letter of the user's email. It opens a `ui/Menu` showing the full email, **Profile** (`/profile`), **Settings** (`/settings`) and **Log out**. `/settings` is a placeholder page for now.
+The account menu is a round avatar with the first letter of the user's email. It opens a `ui/Menu` showing the full email, **Profile** (`/profile`), **Settings** (`/settings`) and **Log out**. `/settings` holds the text size and the theme.
 
 A page owns its action: it passes its buttons through the `actions` prop and the bar knows nothing about them.
 
@@ -145,7 +159,7 @@ On narrow screens the bar stays on one row: the app name is cut with an ellipsis
 
 `/profile` has two sections.
 
-- **Account** — the email and "Member since <date>" (day/month/year), both from `useAuth()`.
+- **Account** — the email and "Member since <date>" (day/month/year), both from `useAuth()`. A "Delete account" button asks for confirmation, then calls `DELETE /api/auth/me`, which removes the account with its widgets, connections and saved keys.
 - **Services** — one row per catalog service that needs credentials (`auth.kind` `apiKey` or `oauth2`), connected or not, in catalog order. The list comes from `GET /api/catalog`, so a new service or provider appears without touching the page. Services with `auth.kind: 'none'` are not listed.
 
 | `auth.kind` | `subscription` | Status | Actions |
@@ -236,11 +250,14 @@ A new widget is placed at the bottom left of the dashboard and floats up if the 
 Every widget is drawn inside `WidgetShell`, which owns everything that is not specific to one widget:
 
 - title bar with refresh, edit, move earlier / later and delete actions, and the time of the last fetch; from 768 px up the bar is also the handle the card is dragged by
+- an **API key** button in the bar for a widget of an `apiKey` service, and a **Connect** / **Reconnect** button for a widget of an `oauth2` service
 - data fetching and polling every `refreshSeconds` (`useWidgetData`)
 - a spinner on first load, and a small indicator while refreshing
 - one message per error code the API can answer with (`rate_limited`, `upstream_error`, `invalid_config`, `needs_reauth`), plus a network error
 - when a refresh fails, the last good data stays on screen with a "Refresh failed" note
 - an error boundary, so a widget that throws does not take the dashboard down
+
+A widget of an `apiKey` or `oauth2` service has no data until its service is connected: the API answers `needs_reauth`, and the shell shows a prompt in place of the widget. For an `apiKey` service the prompt is "Set API key", which opens `ApiKeyDialog`; saving the key calls `POST /api/subscriptions/:service` and the widget loads. For an `oauth2` service it is `ConnectButton` ("Connect", or "Reconnect" when a subscription already exists), which sends the browser to `GET /api/subscriptions/:service/authorize`; the provider sends it back to `/dashboard?connected=<service>`, where `OAuthNotice` shows the result. The button is disabled, with an explanation, when the server has no credentials for the provider. The same key or connection serves every widget of that service, and the Profile page manages them all in one place.
 
 ### Adding a widget
 
@@ -258,7 +275,7 @@ const echo = defineWidget({
 })
 ```
 
-A widget with no entry in the registry falls back to a "Widget not implemented yet" placeholder. `AdviceWidget` is still a legacy entry: it fetches and polls for itself instead of going through the shell.
+A widget with no entry in the registry falls back to a "Widget not implemented yet" placeholder. `AdviceWidget` and `LetterboxdWidget` are still legacy entries: they fetch and poll for themselves instead of going through the shell.
 
 ## Run locally
 
