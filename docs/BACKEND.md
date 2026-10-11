@@ -14,26 +14,35 @@ apps/api/src/
 ├── db/
 │   ├── schema.ts      ← the database tables, written in TypeScript
 │   ├── client.ts      ← the database connection
-│   └── migrate.ts     ← applies the SQL files in apps/api/drizzle/
+│   ├── migrate.ts     ← applies the SQL files in apps/api/drizzle/
+│   └── encrypted.ts   ← column types that encrypt on write and decrypt on read
 ├── plugins/           ← shared "middleware"
 │   ├── session.ts     ← works out who is logged in from the cookie
 │   ├── cors.ts        ← decides which websites may call the API
-│   └── rate-limit.ts  ← stops spam
+│   └── rate-limit.ts  ← stops spam on the account routes (10 requests a minute per IP)
 ├── lib/               ← small helper tools
 │   ├── password.ts    ← password hashing
 │   ├── tokens.ts      ← random tokens and their hashes
+│   ├── crypto.ts      ← encrypts and decrypts stored credentials (AES-256-GCM)
 │   ├── cache.ts       ← in-memory cache for widget data
+│   ├── rate-limit.ts  ← per-user limiter for actions
+│   ├── http.ts        ← HTTP client handed to widgets, and the caller's IP address
 │   ├── mailer.ts      ← sends emails (Brevo)
 │   └── errors.ts      ← turns errors into clean JSON
-├── services/          ← the "menu": Weather, GitHub, …
-│   ├── types.ts       ← what a service or widget looks like
+├── services/          ← the "menu": NASA, GitHub, Letterboxd, …
+│   ├── types.ts       ← what a service, a widget or an action looks like
 │   ├── registry.ts    ← the list of all services
 │   ├── register.ts    ← fills the list when the server starts
-│   └── definitions/   ← one file per service (mock.ts for now)
+│   ├── params.ts      ← checks widget and action settings against their definition
+│   ├── definitions/   ← one file per service, listed in index.ts
+│   ├── oauth/         ← OAuth providers (GitHub, Spotify) and token refresh
+│   └── pokemon-tcg/   ← helpers of the Pokémon TCG service
 └── modules/           ← the actual API features
     ├── auth/
     ├── catalog/
     ├── dashboard/
+    ├── subscriptions/
+    ├── actions/
     └── about/
 ```
 
@@ -70,6 +79,9 @@ logic without a real database.
 | POST | `/api/auth/login` | Checks the password and sets the session cookie |
 | POST | `/api/auth/logout` | Deletes the session |
 | GET | `/api/auth/me` | Returns the logged-in user |
+| DELETE | `/api/auth/me` | Deletes the logged-in user's account and everything in it |
+| GET | `/api/auth/oauth/:provider` | Starts "Continue with GitHub": redirects the browser to the provider |
+| GET | `/api/auth/oauth/:provider/callback` | Where the provider sends the browser back; sets the session cookie |
 
 **`modules/catalog/`**, which covers what's available:
 
@@ -85,11 +97,29 @@ logic without a real database.
 | POST | `/api/dashboard/instances` | Adds a widget |
 | PATCH | `/api/dashboard/instances/:id` | Changes one widget (title, settings, refresh time…) |
 | DELETE | `/api/dashboard/instances/:id` | Removes it |
-| PATCH | `/api/dashboard/layout` | Saves the new positions after you drag widgets around |
+| PATCH | `/api/dashboard/layout` | Saves the new positions after widgets are moved |
 | GET | `/api/dashboard/instances/:id/data` | Returns the widget's actual data (see below) |
 
 The data route lives in `data.service.ts`: it checks the cache, and on a miss
 it calls the widget's `fetch()` and caches the result.
+
+**`modules/subscriptions/`**, which covers the user's API keys and connected accounts:
+
+| Method | Path | What it does |
+|---|---|---|
+| GET | `/api/subscriptions` | Lists my subscriptions, without the credentials |
+| POST | `/api/subscriptions/:service` | Stores (or replaces) my API key for an `apiKey` service |
+| DELETE | `/api/subscriptions/:service` | Removes my subscription and its credentials |
+| GET | `/api/subscriptions/:service/authorize` | Starts connecting an `oauth2` service: redirects the browser to the provider |
+| GET | `/api/subscriptions/oauth/:provider/callback` | Where the provider sends the browser back; stores the tokens, encrypted |
+
+The last two are opened by the browser itself, not called with `fetch`, so they answer with redirects to the dashboard instead of JSON.
+
+**`modules/actions/`**, which covers things a user triggers on demand:
+
+| Method | Path | What it does |
+|---|---|---|
+| POST | `/api/services/:serviceId/actions/:actionId` | Runs one action of a service (for example opening a Pokémon booster pack). Never cached, and rate limited per user when the action says so |
 
 **`modules/about/`**:
 
@@ -106,12 +136,14 @@ Swagger-style API docs are generated automatically by the `openapi` plugin in
 The tables are defined in **`db/schema.ts`**. Drizzle turns them into SQL
 migration files in `apps/api/drizzle/`, and `bun run migrate` applies them.
 
-There are 4 tables, and everything hangs off `users`:
+There are 6 tables, and everything hangs off `users`:
 
 ```mermaid
 erDiagram
     users ||--o{ user_tokens : "has"
     users ||--o{ sessions : "has"
+    users ||--o{ auth_identities : "has"
+    users ||--o{ service_subscriptions : "has"
     users ||--o{ widget_instances : "has"
 
     users {
@@ -145,11 +177,30 @@ erDiagram
         timestamptz created_at
     }
 
+    auth_identities {
+        uuid id PK
+        uuid user_id FK
+        text provider "e.g. github"
+        text provider_user_id "the provider's stable id"
+        text email "as reported when linked"
+        timestamptz created_at
+    }
+
+    service_subscriptions {
+        uuid id PK
+        uuid user_id FK
+        text service_id "registry id, e.g. nasa"
+        subscription_status status "active | needs_reauth | revoked"
+        text credentials "encrypted JSON"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
     widget_instances {
         uuid id PK
         uuid user_id FK
-        text service_id "registry id, e.g. weather"
-        text widget_id "registry id, e.g. forecast"
+        text service_id "registry id, e.g. nasa"
+        text widget_id "registry id, e.g. neows"
         text title "nullable"
         jsonb params
         int refresh_seconds ">= 5"
@@ -168,8 +219,8 @@ deleting a user deletes all of their stuff too.
 
 **`users`** holds one row per person.
 - `email` is unique, and the check ignores upper/lower case.
-- `password_hash` can be **empty**, which is planned for "Login with Google"
-  accounts (#12).
+- `password_hash` can be **empty**: an account created with "Continue with
+  GitHub" has no password.
 - `email_verified_at` stays empty until they click the link.
 - `role` is `user` or `admin`.
 - `disabled_at` lets an admin block an account.
@@ -187,10 +238,24 @@ deleting a user deletes all of their stuff too.
   Someone who steals the database still can't log in as anyone.
 - `expires_at` defaults to 30 days after login (`SESSION_TTL_DAYS`).
 
+**`auth_identities`** holds one row per outside account that can log in as a
+user ("Continue with GitHub").
+- `provider` and `provider_user_id` together are unique. The id is the
+  provider's stable number, never the login name, which can change.
+- It never holds a token from the provider.
+
+**`service_subscriptions`** holds one row per service a user has connected.
+- `service_id` is plain text, a registry id like in `widget_instances`. A user
+  can have only one row per service.
+- `credentials` is the API key or the OAuth tokens, as JSON **encrypted** with
+  `MASTER_KEY` (`db/encrypted.ts`). No route ever returns it.
+- `status` is `active`, `needs_reauth` (the service rejected the credential,
+  the user has to set it again) or `revoked`.
+
 **`widget_instances`** holds one row per widget placed on someone's dashboard.
 - `service_id` and `widget_id` are plain text, not links to another table.
   Services live in **code** (the registry), not in the database.
-- `params` is JSON with the widget's settings, e.g. `{ "city": "Paris" }`.
+- `params` is JSON with the widget's settings, e.g. `{ "days": 3 }`.
 - `refresh_seconds` must be at least 5; the database itself enforces this.
 - `x, y, w, h` give the widget's position and size on the grid, and can't be
   negative.
@@ -199,12 +264,6 @@ deleting a user deletes all of their stuff too.
 ### What's not in the database
 
 - **Services and widget definitions** live in code, in `services/definitions/`.
-- **Widget data** (the actual weather and so on) lives in memory in
+- **Widget data** (the actual notifications, films and so on) lives in memory in
   `lib/cache.ts` and is lost when the server restarts. That's fine, because it
   just gets fetched again.
-
-### Coming next
-
-#21 adds a 5th table, **`service_subscriptions`**. It's another child of
-`users` and stores which services you've connected to and your **encrypted**
-API keys.
