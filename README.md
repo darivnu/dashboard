@@ -2,6 +2,8 @@
 
 Dashboard is a personal start page. You pick small panels called widgets (radio stations on a globe, your GitHub notifications, this week's free games, NASA's picture of the day) and arrange them on one screen that keeps itself up to date. Each person has their own account and their own layout.
 
+![The dashboard with seven widgets: a globe of radio stations, free games, a fact, a piece of advice, a fox picture, recent films and opened Pokémon cards](docs/screenshots/dashboard.png)
+
 Live version: https://dashboard-api-puce.vercel.app/
 
 ## What you can do with it
@@ -64,6 +66,10 @@ GitHub and Spotify can be connected only when the server has credentials for the
 8. **Move and resize.** On a wide screen, drag a card by its header to move it, and drag its bottom-right corner to resize it. On a narrow screen use the ↑ and ↓ buttons on the card (named "Move earlier" and "Move later" for screen readers); on a wide screen they appear when you reach them with the Tab key.
 9. **Delete a widget** with "Delete" on its card. The app asks for confirmation.
 10. **Account menu.** The round button in the top right corner leads to Profile (account, services, delete account), Settings (theme and text size) and "Log out".
+
+| Adding a widget | Light theme | On a phone |
+|---|---|---|
+| ![The Add widget dialog, listing widgets grouped by service](docs/screenshots/add-widget.png) | ![The same dashboard with the light theme](docs/screenshots/dashboard-light.png) | ![The dashboard on a narrow screen, with the cards in one column](docs/screenshots/dashboard-phone.png) |
 
 ## Getting started
 
