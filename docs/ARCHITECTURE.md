@@ -15,7 +15,6 @@ dashboard/
 ├── docker-compose.yml
 ├── Dockerfile
 ├── vercel.json
-├── deploy.sh
 └── package.json
 ```
 
@@ -148,7 +147,7 @@ Routing, the grid, the profile and settings pages and the tests are described in
 - `api` (root `apps/api`), whose build command runs the database migrations;
 - `web` (root `apps/web`), the static frontend, with a rewrite of every path to `index.html` so that client-side routes work.
 
-The top-level rewrites send `/api/*` and `/about.json` to `api` and everything else to `web`. Both Services therefore answer on **one origin**, and `APP_URL`, `WEB_URL` and `CORS_ORIGINS` all hold that origin. `deploy.sh` triggers a production build by pushing an empty commit to `main` as the project owner.
+The top-level rewrites send `/api/*` and `/about.json` to `api` and everything else to `web`. Both Services therefore answer on **one origin**, and `APP_URL`, `WEB_URL` and `CORS_ORIGINS` all hold that origin.
 
 One origin matters for the session cookie. During an OAuth connection the browser leaves for the provider and comes back to the API's callback. If the frontend and the API were on two different sites, the session cookie would be a third-party cookie for the frontend, browsers that block those would not keep it, and the callback would not know who is connecting.
 

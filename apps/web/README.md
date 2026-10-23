@@ -118,7 +118,7 @@ server: {
 
 ### Production
 
-Production runs on Vercel as one project with two [Services](https://vercel.com/docs/services), declared in the root `vercel.json` (`deploy.sh` at the repo root triggers a build of `main`): `web` serves this app, `api` answers `/api/*` and `/about.json`. Both share one origin, so `VITE_API_URL` stays unset and `APP_URL`, `WEB_URL` and `CORS_ORIGINS` all hold that origin. Keep it that way: on two different sites the session cookie becomes third-party, browsers drop it on the OAuth redirects, and connecting a service fails with "Your session ended before the connection finished".
+Production runs on Vercel as one project with two [Services](https://vercel.com/docs/services), declared in the root `vercel.json`: `web` serves this app, `api` answers `/api/*` and `/about.json`. Both share one origin, so `VITE_API_URL` stays unset and `APP_URL`, `WEB_URL` and `CORS_ORIGINS` all hold that origin. Keep it that way: on two different sites the session cookie becomes third-party, browsers drop it on the OAuth redirects, and connecting a service fails with "Your session ended before the connection finished".
 
 Docker is not used in production. `docker compose up --build` is a way to run the whole stack on one machine: the image builds `apps/web` and the API serves `../web/dist` itself on port 8080. Same origin, so `VITE_API_URL` stays unset.
 
